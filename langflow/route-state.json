@@ -1,0 +1,27 @@
+{
+  "name": "route-state-trip-planner",
+  "runtime": false,
+  "note": "Viewer artifact only. Node IDs must match src/ai/graph/spec.ts. Never on the request path.",
+  "nodes": [
+    { "id": "scope_guard" },
+    { "id": "gather_preferences" },
+    { "id": "route_supervisor" },
+    { "id": "discover_destinations" },
+    { "id": "await_destination_choice" },
+    { "id": "research_local" },
+    { "id": "plan_itinerary" },
+    { "id": "critique_itinerary" },
+    { "id": "await_tradeoff" },
+    { "id": "present_plan" }
+  ],
+  "edges": [
+    { "source": "scope_guard", "target": "gather_preferences" },
+    { "source": "gather_preferences", "target": "route_supervisor" },
+    { "source": "route_supervisor", "target": "discover_destinations" },
+    { "source": "discover_destinations", "target": "await_destination_choice" },
+    { "source": "await_destination_choice", "target": "research_local" },
+    { "source": "research_local", "target": "plan_itinerary" },
+    { "source": "plan_itinerary", "target": "critique_itinerary" },
+    { "source": "critique_itinerary", "target": "present_plan" }
+  ]
+}

@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
+import { withBotId } from "botid/next/config";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  allowedDevOrigins: ["127.0.0.1"],
+  serverExternalPackages: ["pg", "sharp"],
 };
 
-export default nextConfig;
+export default withBotId(nextConfig);

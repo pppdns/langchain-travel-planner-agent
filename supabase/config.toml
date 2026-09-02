@@ -1,0 +1,12 @@
+project_id = "mrwnejqdzcyukhkipcbe"
+
+[api]
+enabled = true
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+
+[auth]
+enabled = true
+
+[auth.anonymous_sign_in]
+enabled = true

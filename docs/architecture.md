@@ -1,0 +1,30 @@
+# Architecture
+
+```mermaid
+flowchart LR
+  Recruiter --> Workspace
+  Workspace --> TripAPI
+  TripAPI --> StreamBridge
+  StreamBridge --> LangGraph
+  LangGraph --> Gather
+  LangGraph --> Discover
+  LangGraph --> Research
+  LangGraph --> Plan
+  Discover --> DestinationInterrupt
+  DestinationInterrupt -->|Command resume| LangGraph
+  LangGraph --> PublicEvents
+  PublicEvents --> Workspace
+```
+
+LangGraph owns durable state, routing, interrupts, and checkpoints.
+The AI SDK / NDJSON bridge owns the recruiter-facing stream.
+`src/ai/graph/spec.ts` is the shared registry for the compiled graph, atlas, LangFlow artifact, and replay fixtures.
+
+Interview map:
+
+| Question | Code |
+|---|---|
+| How do you keep HITL on the same thread? | `src/ai/graph/compile.ts` `await_destination_choice` + `Command` |
+| How do you stop clients from stuffing history? | `app/api/trips/[id]/run/route.ts` sends only the new delta |
+| How do you expose a graph without leaking prompts? | `src/ai/stream/public-events.ts` |
+| How do you keep the demo alive? | `src/ai/runtime/budget.ts` + `src/ai/replay` |

@@ -1,3 +1,7 @@
-export default function Home() {
-  return <main className="flex flex-1 flex-col" />;
+import { RouteStateWorkspace } from "@/src/features/workspace/RouteStateWorkspace";
+
+export const dynamic = "force-dynamic";
+
+export default function HomePage() {
+  return <RouteStateWorkspace />;
 }

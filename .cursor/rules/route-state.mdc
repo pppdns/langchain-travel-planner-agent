@@ -1,0 +1,9 @@
+---
+description: Route State graph and public-event contracts
+---
+
+Keep graph node IDs in `src/ai/graph/spec.ts` synchronized with the atlas, LangFlow artifact, and replay fixtures.
+
+Never stream prompts, secrets, checkpoint blobs, or retrieved chunk bodies. Use the allowlisted public event types only.
+
+Resume HITL with `Command({ resume })`. Send only the new user delta into a checkpointed graph.

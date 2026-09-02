@@ -1,55 +1,55 @@
-# AI agent showcase demo project
+# Route State
 
-## Overview
+Public graph-first travel planner used as an AI engineering showcase.
 
-## Tech Stack
+## Tech stack
 
-## Project Structure
+Next.js 16 App Router, TypeScript, Tailwind v4, LangGraph.js, LangChain.js, Supabase, Vitest, Playwright.
 
-## Key Conventions
+## Project structure
 
-## Related Documentation
+- `src/ai/graph` shared spec, state, ranking, compiled graph
+- `src/ai/stream` public event protocol
+- `src/ai/runtime` run, replay, budget
+- `src/features/workspace` Orchestration Atlas UI
+- `app/api/trips` create, snapshot, run, images
+- `data/travel` synthetic catalog
+- `langflow/route-state.json` non-runtime viewer artifact
+- `docs/` architecture, security, evaluation, runbook
 
-## Main Commands
+## Commands
 
-## AI Agent Guidelines
+```sh
+pnpm dev
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm test:e2e
+```
 
-Commit regularly and verify your own work using automated feedback loops.
+## Conventions
 
-### Documentation Maintenance (IMPORTANT!)
+- Graph node IDs stay in `src/ai/graph/spec.ts` and must match LangFlow + atlas + fixtures.
+- Stream only allowlisted public events. Never prompts, secrets, or chunk bodies.
+- Resume uses `Command({ resume })`.
+- Send message deltas only. Do not append the client transcript to the checkpointer.
+- Default runtime is deterministic/fake so CI and the public demo stay alive.
 
-**Keep docs in sync with code changes.** After changes:
+## Documentation
 
-1. Check for `AGENTS.md` in affected subdirectories (or parent folders, except root)
-2. Create/update `.cursor/rules/*.mdc` if patterns change
-3. Create/update docs as needed, including `AGENTS.md` files in sub-folders
-4. Keep the root `AGENTS.md` file up to date with the project state, learnings, references to other docs
+- `README.md`
+- `docs/architecture.md`
+- `docs/security.md`
+- `docs/evaluation.md`
+- `docs/runbook.md`
+- `.ulpi/design/DESIGN.md`
 
-Reference other relevant documentation files instead of duplicating their content, keep documentation files well organized and up to date, and keep references between documentation files up to date.
+<!-- BEGIN:nextjs-agent-rules -->
 
-Use mermaid diagrams when a flowchart or diagram helps explain architecture or data flows.
+# This is NOT the Next.js you know
 
-### Unit/E2E/Visual Test Maintenance
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
-Keep tests in sync with code changes.
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
-### Verification and Feedback Loops
-
-Verification closes the loop for autonomous work. Use fast methods during iteration, slower thorough methods after completion.
-Use/create tooling that help you close the feedback loop and verify your own work.
-
-**Run verification in cheap subagents:** ALWAYS Delegate automated verification work to subagents using the `Grok 4.6 High Fast` model (`cursor-grok-4.6-high-fast`). This is a free but intelligent model. This includes writing or updating unit/component/E2E/visual tests, running `typecheck`, linting, unit tests, component tests, E2E tests, visual regression tests, snapshot updates, and analyzing/fixing verification failures. Keep the main agent focused on orchestration and implementation context unless the check is truly trivial.
-
-For behavior changes and UI/look-and-feel changes, also use the browser tool when needed to verify the real page behavior and visual result directly. Use it to confirm interactions, state changes, layout, and obvious regressions that automated tests or visual snapshots might miss. This complements automated verification; it does not replace `typecheck`, lint, component tests, unit tests, E2E tests, or visual tests. If the UI doesn't look good enough, iterate on improving it using the browser tool.
-
-#### Completion Verification (Required)
-
-### Sub-Agent Delegation
-
-Use sub-agents to parallelize work and delegate specialized tasks and to prevent the main agent's context window from filling up. Keeping the context window for the main, orchestrator AI agent as low as possible is useful. AI agents get dumber as their context window fills up, and also get more expensive. Sub agents start with a clean context window. Make sure to include all the relevant context to sub agents.
-
-Use the `Grok 4.6 High Fast` model for implementation, testing, and everything.
-
-## Common mistakes
-
-## Troubleshooting
+<!-- END:nextjs-agent-rules -->

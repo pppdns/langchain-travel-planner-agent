@@ -1,26 +1,112 @@
 @import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: oklch(0.985 0.008 230);
+  --surface: oklch(0.965 0.012 228);
+  --elevated: oklch(0.992 0.004 230);
+  --text: oklch(0.24 0.028 250);
+  --muted: oklch(0.42 0.022 248);
+  --subtle: oklch(0.50 0.018 248);
+  --border: oklch(0.88 0.014 230);
+  --accent: oklch(0.50 0.175 28);
+  --map-water: oklch(0.94 0.028 230);
+  --map-land: oklch(0.93 0.018 160);
+  --map-line: oklch(0.78 0.02 230);
+  --success: oklch(0.45 0.09 155);
+  --warning: oklch(0.55 0.12 75);
+  --info: oklch(0.48 0.07 240);
+  --shadow-atlas: 0 12px 40px oklch(0.24 0.028 250 / 0.08);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @theme inline {
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-map-water: var(--map-water);
+  --color-map-land: var(--map-land);
+  --color-map-line: var(--map-line);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-newsreader), "Iowan Old Style", serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: oklch(0.17 0.025 245);
+    --surface: oklch(0.21 0.028 245);
+    --elevated: oklch(0.25 0.03 245);
+    --text: oklch(0.93 0.015 230);
+    --muted: oklch(0.75 0.02 230);
+    --subtle: oklch(0.68 0.02 230);
+    --border: oklch(0.32 0.02 245);
+    --map-water: oklch(0.22 0.03 240);
+    --map-land: oklch(0.23 0.025 160);
+    --map-line: oklch(0.36 0.02 230);
   }
 }
 
+* {
+  border-color: var(--border);
+}
+
+html,
 body {
   background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--text);
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.atlas-sheet {
+  background:
+    radial-gradient(1200px 700px at 20% 10%, var(--map-water), transparent 55%),
+    radial-gradient(900px 600px at 80% 90%, var(--map-land), transparent 50%),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 31px,
+      color-mix(in oklch, var(--map-line) 35%, transparent) 32px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 31px,
+      color-mix(in oklch, var(--map-line) 35%, transparent) 32px
+    ),
+    var(--elevated);
+  box-shadow: var(--shadow-atlas);
+}
+
+.react-flow__attribution {
+  display: none;
+}
+
+.react-flow__node {
+  font-family: var(--font-geist-sans), ui-sans-serif, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
