@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { emptyTripState } from "@/src/ai/graph/state";
-import type { GraphNodeId } from "@/src/ai/graph/spec";
 import type { PublicEvent } from "@/src/ai/stream/public-events";
 import type { StarterId } from "@/src/ai/contracts/http";
-import { OrchestrationAtlas } from "@/src/features/workspace/atlas/OrchestrationAtlas";
-import { Journal } from "@/src/features/workspace/journal/Journal";
-import { NodeInspector } from "@/src/features/workspace/inspector/NodeInspector";
-import type { JournalMessage, WorkspaceState } from "@/src/features/workspace/types";
+import { AtlasOverlay } from "@/src/features/workspace/studio/AtlasOverlay";
+import { ExecutionRail } from "@/src/features/workspace/studio/ExecutionRail";
+import { TripPlates } from "@/src/features/workspace/studio/TripPlates";
+import { TripStudio } from "@/src/features/workspace/studio/TripStudio";
+import { latestGraphCaption } from "@/src/features/workspace/atlas/node-status";
+import type { WorkspaceState } from "@/src/features/workspace/types";
 
 async function readNdjson(response: Response, onFrame: (frame: { text?: string; event?: PublicEvent }) => void) {
   const reader = response.body?.getReader();
@@ -35,14 +36,13 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
     mode: "fake",
     tripState: emptyTripState(),
     events: [],
-    messages: [],
+    lastAssistantText: "",
     activeNode: null,
     selectedNode: null,
+    atlasOpen: false,
     running: false,
     error: null,
   });
-  const [draft, setDraft] = useState("");
-  const [consent, setConsent] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,7 +69,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
   }, [initialReplay]);
 
   async function run(tripId: string, body: Record<string, unknown>) {
-    setState((current) => ({ ...current, running: true, error: null }));
+    setState((current) => ({ ...current, running: true, error: null, lastAssistantText: "" }));
     const response = await fetch(`/api/trips/${tripId}/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -89,10 +89,8 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
     }
 
     let assistant = "";
-    const nextEvents: PublicEvent[] = [];
     await readNdjson(response, (frame) => {
       if (frame.event) {
-        nextEvents.push(frame.event);
         setState((current) => ({
           ...current,
           events: [...current.events, frame.event!],
@@ -104,62 +102,52 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
       }
       if (frame.text) {
         assistant += frame.text;
-        setState((current) => {
-          const messages = [...current.messages];
-          const last = messages.at(-1);
-          if (last?.role === "assistant" && last.id === "streaming") {
-            messages[messages.length - 1] = { ...last, content: assistant };
-          } else {
-            messages.push({ id: "streaming", role: "assistant", content: assistant });
-          }
-          return { ...current, messages };
-        });
+        setState((current) => ({ ...current, lastAssistantText: assistant }));
       }
     });
-    setState((current) => ({
-      ...current,
-      running: false,
-      messages: current.messages.map((message) =>
-        message.id === "streaming" ? { ...message, id: crypto.randomUUID() } : message,
-      ),
-    }));
-    void nextEvents;
+    setState((current) => ({ ...current, running: false }));
   }
 
-  function pushUser(content: string) {
-    const message: JournalMessage = { id: crypto.randomUUID(), role: "user", content };
-    setState((current) => ({ ...current, messages: [...current.messages, message] }));
+  function startRun(body: Record<string, unknown>) {
+    if (!state.tripId) return;
+    void run(state.tripId, body);
   }
-
-  const dossier = useMemo(
-    () => [
-      state.tripState.destinationName ?? "Open",
-      state.tripState.dates.durationNights ? `${state.tripState.dates.durationNights} nights` : "Dates open",
-      `${state.tripState.travelers.adults} adults${state.tripState.travelers.children ? ` · ${state.tripState.travelers.children} child` : ""}`,
-      state.tripState.budget.amount ? `${state.tripState.budget.amount} ${state.tripState.budget.currency}` : "Budget open",
-    ],
-    [state.tripState],
-  );
 
   return (
     <div className="flex min-h-dvh flex-col bg-background text-text" data-ready={state.tripId ? "true" : "false"}>
-      <a href="#journal" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[80] focus:bg-elevated focus:px-3 focus:py-2">
-        Skip to journal
+      <a
+        href="#studio"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[80] focus:bg-elevated focus:px-3 focus:py-2"
+      >
+        Skip to studio
       </a>
-      <header className="flex items-center justify-between border-b border-border px-5 py-3">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-subtle">Route State</p>
-          <p className="text-sm text-muted">Orchestration Atlas · trip planner</p>
+      <header className="border-b border-border px-4 py-3 md:px-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-subtle">Route State</p>
+              <p className="text-sm text-muted">Trip Studio</p>
+            </div>
+            <nav className="flex items-center gap-4 text-sm lg:hidden">
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">{state.mode}</span>
+              <Link href="/case-study" className="text-muted hover:text-text">
+                Case study
+              </Link>
+            </nav>
+          </div>
+          <div className="min-w-0 flex-1 lg:max-w-3xl">
+            <TripPlates tripState={state.tripState} />
+          </div>
+          <nav className="hidden items-center gap-4 text-sm lg:flex">
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">{state.mode}</span>
+            <Link href="/case-study" className="text-muted hover:text-text">
+              Case study
+            </Link>
+            <a href="https://github.com" className="text-subtle hover:text-text">
+              Built by Denes Papp
+            </a>
+          </nav>
         </div>
-        <nav className="flex items-center gap-4 text-sm">
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">{state.mode}</span>
-          <Link href="/case-study" className="text-muted hover:text-text">
-            Case study
-          </Link>
-          <a href="https://github.com" className="text-subtle hover:text-text">
-            Built by Denes Papp
-          </a>
-        </nav>
       </header>
 
       {state.mode === "replay" && (
@@ -171,92 +159,40 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
         <div className="border-b border-accent/30 bg-elevated px-5 py-2 text-sm text-accent">{state.error}</div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
-        <div className="flex min-h-[42vh] flex-col gap-3 p-4">
-          <div className="flex flex-wrap gap-3 font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">
-            {dossier.map((item) => (
-              <span key={item}>{item}</span>
-            ))}
-          </div>
-          <div className="min-h-0 flex-1">
-            <OrchestrationAtlas
-              events={state.events}
-              activeNode={state.activeNode}
-              selectedNode={state.selectedNode}
-              onSelect={(id) => setState((current) => ({ ...current, selectedNode: id }))}
-            />
-          </div>
-        </div>
-        <div id="journal" className="min-h-0 border-t border-border lg:border-l lg:border-t-0">
-          <Journal
-            messages={state.messages}
-            tripState={state.tripState}
-            events={state.events}
-            running={state.running}
-            onStarter={(starterId) => {
-              if (!state.tripId) return;
-              pushUser(starterId);
-              void run(state.tripId, { kind: "starter", starterId });
-            }}
-            onChip={(field, value) => {
-              if (!state.tripId) return;
-              pushUser(value);
-              void run(state.tripId, { kind: "chip", field, value });
-            }}
-            onResume={(interruptId, value) => {
-              if (!state.tripId) return;
-              pushUser(value);
-              void run(state.tripId, { kind: "resume", interruptId, value });
-            }}
-          />
-        </div>
+      <div aria-live="polite" className="sr-only">
+        {latestGraphCaption(state.events)}
       </div>
 
-      {state.selectedNode && (
-        <NodeInspector
-          nodeId={state.selectedNode as GraphNodeId}
-          events={state.events}
+      <ExecutionRail
+        events={state.events}
+        activeNode={state.activeNode}
+        onOpenNode={(id) => setState((current) => ({ ...current, selectedNode: id, atlasOpen: true }))}
+      />
+
+      <div className="min-h-0 flex-1">
+        <TripStudio
           tripState={state.tripState}
-          onClose={() => setState((current) => ({ ...current, selectedNode: null }))}
+          events={state.events}
+          running={state.running}
+          lastAssistantText={state.lastAssistantText}
+          onStarter={(starterId) => startRun({ kind: "starter", starterId })}
+          onChip={(field, value) => startRun({ kind: "chip", field, value })}
+          onResume={(interruptId, value) => startRun({ kind: "resume", interruptId, value })}
+          onMessage={(text) => startRun({ kind: "message", text })}
+        />
+      </div>
+
+      {state.atlasOpen && (
+        <AtlasOverlay
+          events={state.events}
+          activeNode={state.activeNode}
+          selectedNode={state.selectedNode}
+          tripState={state.tripState}
+          onSelect={(id) => setState((current) => ({ ...current, selectedNode: id }))}
+          onClearSelected={() => setState((current) => ({ ...current, selectedNode: null }))}
+          onClose={() => setState((current) => ({ ...current, atlasOpen: false, selectedNode: null }))}
         />
       )}
-
-      <form
-        className="sticky bottom-0 border-t border-border bg-elevated px-5 py-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!state.tripId || !draft.trim()) return;
-          const text = draft.trim();
-          setDraft("");
-          pushUser(text);
-          void run(state.tripId, { kind: "message", text });
-        }}
-      >
-        <label htmlFor="composer" className="sr-only">
-          Message
-        </label>
-        <div className="flex items-end gap-3">
-          <textarea
-            id="composer"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            rows={2}
-            placeholder="Ask to revise the plan, or describe the trip."
-            className="min-h-11 flex-1 resize-none rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-          />
-          <button
-            type="submit"
-            disabled={state.running || !state.tripId}
-            className="min-h-11 rounded-[8px] bg-accent px-4 text-sm text-elevated disabled:opacity-50"
-          >
-            Send
-          </button>
-        </div>
-        <label className="mt-2 flex items-center gap-2 text-xs text-muted">
-          <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
-          I understand image uploads are optional scenery only, never identity or booking documents.
-        </label>
-      </form>
     </div>
   );
 }

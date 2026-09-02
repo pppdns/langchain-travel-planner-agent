@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { emptyTripState, mergeTripState, missingUsefulFields, tripStateSchema } from "@/src/ai/graph/state";
+import { DESTINATIONS, PLATE_MOTIFS } from "@/data/travel/catalog";
+import { buildItinerary } from "@/src/ai/graph/itinerary";
+import {
+  emptyTripState,
+  mergeTripState,
+  missingUsefulFields,
+  projectPublicTripState,
+  tripStateSchema,
+} from "@/src/ai/graph/state";
 import { GRAPH_NODE_IDS, GRAPH_SPEC } from "@/src/ai/graph/spec";
+import { resolveStudioStage } from "@/src/features/workspace/studio/studio-stage";
 import { sanitizePublicEvent } from "@/src/ai/stream/public-events";
 import { isOffScope, looksLikeInjection } from "@/src/ai/guardrails/scope";
 import { rankDestinations } from "@/src/ai/graph/rank";
@@ -22,6 +31,33 @@ describe("trip state", () => {
 
   it("asks for useful missing fields only", () => {
     expect(missingUsefulFields(emptyTripState())).toContain("tripType");
+  });
+});
+
+describe("studio visuals", () => {
+  it("assigns a plate motif to every destination", () => {
+    expect(DESTINATIONS.every((destination) => PLATE_MOTIFS.includes(destination.plate.motif))).toBe(true);
+  });
+
+  it("tags itinerary stops with a visual kind", () => {
+    const itinerary = buildItinerary(
+      { ...emptyTripState(), dates: { flexible: true, durationNights: 4 } },
+      "faro",
+    );
+    expect(itinerary.days[0]?.stops.every((stop) => stop.kind)).toBe(true);
+  });
+
+  it("keeps off-scope on intake until a trip starts", () => {
+    expect(
+      resolveStudioStage(
+        projectPublicTripState({
+          ...emptyTripState(),
+          currentPlanningStage: "intake",
+          lastQuestion: "I only plan trips. Tell me where, when, and with whom you want to travel.",
+        }),
+        false,
+      ),
+    ).toBe("off_scope");
   });
 });
 

@@ -15,7 +15,7 @@ Every screen must read as the same product if placed side by side.
 
 ## Design Read
 
-A printed atlas on a cool worktable. The graph is the product. Conversation is the journal that steers it.
+A printed atlas on a cool worktable. The studio is the trip. The graph stays on a rail until someone inspects it.
 
 ## Signature
 
@@ -28,7 +28,7 @@ Neutrals are cyan-tinted. One accent. No cream paper, no AI purple.
 | role | OKLCH | hex | use | contrast |
 |---|---|---|---|---|
 | background | `oklch(0.985 0.008 230)` | `#F2F7F9` | App canvas | - |
-| surface | `oklch(0.965 0.012 228)` | `#E8F0F4` | Journal, dossier | - |
+| surface | `oklch(0.965 0.012 228)` | `#E8F0F4` | Studio, plates | - |
 | elevated | `oklch(0.992 0.004 230)` | `#F7FBFC` | Composer, sheets, HITL | - |
 | text | `oklch(0.24 0.028 250)` | `#1A2740` | Body, headings | 13.8:1 on background |
 | muted | `oklch(0.42 0.022 248)` | `#4A5870` | Secondary labels | 6.7:1 |

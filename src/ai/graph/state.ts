@@ -64,11 +64,14 @@ export const candidateDestinationSchema = z.object({
   evidence: z.array(evidenceRefSchema).max(6),
 });
 
+export const itineraryStopKindSchema = z.enum(["arrive", "swim", "walk", "eat", "see", "leave"]);
+
 export const itineraryStopSchema = z.object({
   title: z.string(),
   area: z.string().optional(),
   notes: z.string(),
   pace: paceSchema.optional(),
+  kind: itineraryStopKindSchema.optional(),
 });
 
 export const itineraryDaySchema = z.object({
@@ -134,6 +137,7 @@ export type TripState = z.infer<typeof tripStateSchema>;
 export type EvidenceRef = z.infer<typeof evidenceRefSchema>;
 export type CandidateDestination = z.infer<typeof candidateDestinationSchema>;
 export type Itinerary = z.infer<typeof itinerarySchema>;
+export type ItineraryStopKind = z.infer<typeof itineraryStopKindSchema>;
 export type PendingInterrupt = z.infer<typeof pendingInterruptSchema>;
 export type PlanningStage = z.infer<typeof planningStageSchema>;
 export type ModelTier = z.infer<typeof modelTierSchema>;

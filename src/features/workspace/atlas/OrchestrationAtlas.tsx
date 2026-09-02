@@ -13,6 +13,7 @@ import {
 } from "@xyflow/react";
 import { GRAPH_EDGES, GRAPH_NODES, type GraphNodeId } from "@/src/ai/graph/spec";
 import type { PublicEvent } from "@/src/ai/stream/public-events";
+import { statusFor } from "@/src/features/workspace/atlas/node-status";
 import { cn } from "@/src/lib/cn";
 
 type AtlasNodeData = {
@@ -44,17 +45,6 @@ function AtlasNode({ data, selected }: NodeProps) {
 }
 
 const nodeTypes = { atlas: AtlasNode };
-
-function statusFor(nodeId: GraphNodeId, events: PublicEvent[], activeNode: GraphNodeId | null) {
-  const related = events.filter((event) => event.type === "graph" && event.node === nodeId);
-  const waiting = related.some((event) => event.type === "graph" && event.phase === "waiting");
-  const ended = related.some((event) => event.type === "graph" && event.phase === "end");
-  if (waiting && !ended) return "waiting";
-  if (activeNode === nodeId && !ended) return "active";
-  if (ended) return "done";
-  if (related.length) return "active";
-  return "idle";
-}
 
 export function OrchestrationAtlas({
   events,

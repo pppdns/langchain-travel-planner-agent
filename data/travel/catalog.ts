@@ -12,6 +12,9 @@ export type DestinationTraits = {
   nightlife: boolean;
 };
 
+export const PLATE_MOTIFS = ["coast", "harbor", "grid", "island", "river", "hills"] as const;
+export type PlateMotif = (typeof PLATE_MOTIFS)[number];
+
 export type DestinationRecord = {
   slug: string;
   name: string;
@@ -19,6 +22,7 @@ export type DestinationRecord = {
   region: string;
   summary: string;
   traits: DestinationTraits;
+  plate: { motif: PlateMotif };
 };
 
 export type KnowledgeDoc = {
@@ -45,7 +49,44 @@ const traits = (partial: Partial<DestinationTraits>): DestinationTraits => ({
   ...partial,
 });
 
-export const DESTINATIONS: DestinationRecord[] = [
+const PLATE_MOTIF_BY_SLUG: Record<string, PlateMotif> = {
+  faro: "coast",
+  valencia: "harbor",
+  nice: "harbor",
+  barcelona: "grid",
+  lisbon: "hills",
+  porto: "river",
+  seville: "grid",
+  malaga: "harbor",
+  palma: "island",
+  split: "harbor",
+  dubrovnik: "coast",
+  athens: "hills",
+  chania: "harbor",
+  santorini: "island",
+  rome: "grid",
+  florence: "hills",
+  venice: "island",
+  amsterdam: "river",
+  copenhagen: "harbor",
+  edinburgh: "hills",
+  dublin: "grid",
+  prague: "river",
+  budapest: "river",
+  vienna: "grid",
+  krakow: "grid",
+  madeira: "hills",
+};
+
+function motifFromTraits(traits: DestinationTraits): PlateMotif {
+  if (traits.beach && traits.city) return "harbor";
+  if (traits.beach) return "coast";
+  if (traits.nature) return "hills";
+  if (traits.city) return "grid";
+  return "hills";
+}
+
+const DESTINATION_SEEDS: Omit<DestinationRecord, "plate">[] = [
   {
     slug: "faro",
     name: "Faro / Algarve",
@@ -255,6 +296,17 @@ export const DESTINATIONS: DestinationRecord[] = [
     traits: traits({ nature: true, warm: true, food: true }),
   },
 ];
+
+export const DESTINATIONS: DestinationRecord[] = DESTINATION_SEEDS.map((seed) => ({
+  ...seed,
+  plate: { motif: PLATE_MOTIF_BY_SLUG[seed.slug] ?? motifFromTraits(seed.traits) },
+}));
+
+export function plateMotifFor(slug: string, fallbackTraits?: DestinationTraits): PlateMotif {
+  if (PLATE_MOTIF_BY_SLUG[slug]) return PLATE_MOTIF_BY_SLUG[slug];
+  if (fallbackTraits) return motifFromTraits(fallbackTraits);
+  return getDestination(slug)?.plate.motif ?? "grid";
+}
 
 const topics = [
   "neighborhoods",
