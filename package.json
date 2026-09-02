@@ -4,9 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "NODE_ENV=production next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "supabase:gen-types:dev": "supabase gen types typescript --linked --schema public > supabase/database.types.ts && prettier --write supabase/database.types.ts",
+    "test": "vitest run",
+    "test:e2e": "playwright test --project=chromium",
+    "test:ui": "vitest --ui",
+    "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit --skipLibCheck --project tsconfig.json"
   },
   "dependencies": {
     "next": "16.3.4",
