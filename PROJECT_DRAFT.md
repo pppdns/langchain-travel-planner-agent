@@ -47,6 +47,7 @@ The application should demonstrate:
 - Vitest
 - Playwright
 - polished, responsive, unique, simple, mobile-first Next.js UI
+- Vercel AI SDK
 
 The main portfolio message should be:
 
