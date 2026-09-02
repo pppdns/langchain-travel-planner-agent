@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { DESTINATIONS, PLATE_MOTIFS } from "@/data/travel/catalog";
 import { buildItinerary } from "@/src/ai/graph/itinerary";
-import {
-  emptyTripState,
-  mergeTripState,
-  missingUsefulFields,
-  projectPublicTripState,
-  tripStateSchema,
-} from "@/src/ai/graph/state";
+import { emptyTripState, mergeTripState, missingUsefulFields, tripStateSchema } from "@/src/ai/graph/state";
 import { GRAPH_NODE_IDS, GRAPH_SPEC } from "@/src/ai/graph/spec";
-import { resolveStudioStage } from "@/src/features/workspace/studio/studio-stage";
+import {
+  isOffScopeQuestion,
+  matchGuidedReply,
+  matchInterruptReply,
+  resolveInterrupt,
+} from "@/src/features/workspace/conversation/helpers";
 import { sanitizePublicEvent } from "@/src/ai/stream/public-events";
 import { isOffScope, looksLikeInjection } from "@/src/ai/guardrails/scope";
 import { rankDestinations } from "@/src/ai/graph/rank";
@@ -34,6 +33,50 @@ describe("trip state", () => {
   });
 });
 
+describe("conversation helpers", () => {
+  const interrupt = {
+    interruptId: "choose-destination-faro-malaga-chania",
+    interruptType: "choose_destination" as const,
+    title: "Choose a destination",
+    prompt: "Pick one",
+    options: [
+      { id: "faro", label: "Faro / Algarve" },
+      { id: "malaga", label: "Málaga" },
+    ],
+  };
+
+  it("does not keep a destination interrupt after the plan is ready", () => {
+    const trip = {
+      ...emptyTripState(),
+      currentPlanningStage: "complete" as const,
+      pendingInterrupt: null,
+    };
+    expect(
+      resolveInterrupt(trip, [
+        {
+          type: "interrupt",
+          interruptId: interrupt.interruptId,
+          interruptType: interrupt.interruptType,
+          title: interrupt.title,
+          prompt: interrupt.prompt,
+          options: interrupt.options,
+        },
+      ]),
+    ).toBeNull();
+  });
+
+  it("matches a typed destination name or number", () => {
+    expect(matchInterruptReply("Faro", interrupt, [{ slug: "faro", name: "Faro / Algarve" }])).toBe("faro");
+    expect(matchInterruptReply("1", interrupt)).toBe("faro");
+    expect(matchInterruptReply("beach", interrupt)).toBeNull();
+  });
+
+  it("matches a typed gathering answer before treating it as an index", () => {
+    expect(matchGuidedReply("5", ["4", "5", "6", "7"], "duration")).toBe("5");
+    expect(matchGuidedReply("1", ["beach", "city", "family"], "tripType")).toBe("beach");
+  });
+});
+
 describe("studio visuals", () => {
   it("assigns a plate motif to every destination", () => {
     expect(DESTINATIONS.every((destination) => PLATE_MOTIFS.includes(destination.plate.motif))).toBe(true);
@@ -47,17 +90,10 @@ describe("studio visuals", () => {
     expect(itinerary.days[0]?.stops.every((stop) => stop.kind)).toBe(true);
   });
 
-  it("keeps off-scope on intake until a trip starts", () => {
+  it("recognizes an off-scope redirect", () => {
     expect(
-      resolveStudioStage(
-        projectPublicTripState({
-          ...emptyTripState(),
-          currentPlanningStage: "intake",
-          lastQuestion: "I only plan trips. Tell me where, when, and with whom you want to travel.",
-        }),
-        false,
-      ),
-    ).toBe("off_scope");
+      isOffScopeQuestion("I only plan trips. Tell me where, when, and with whom you want to travel."),
+    ).toBe(true);
   });
 });
 

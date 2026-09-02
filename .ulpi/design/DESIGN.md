@@ -4,8 +4,8 @@ register: product
 aesthetic_direction: editorial / magazine, cartographic atelier
 color_strategy: restrained
 design_system: radix + owned themed components
-design_variance: 5
-motion_intensity: 4
+design_variance: 7
+motion_intensity: 6
 visual_density: 5
 ---
 
@@ -15,7 +15,7 @@ Every screen must read as the same product if placed side by side.
 
 ## Design Read
 
-A printed atlas on a cool worktable. The studio is the trip. The graph stays on a rail until someone inspects it.
+A correspondent's desk on cool atlas paper. The trip is a conversation. The graph writes itself in the margin.
 
 ## Signature
 
@@ -28,7 +28,7 @@ Neutrals are cyan-tinted. One accent. No cream paper, no AI purple.
 | role | OKLCH | hex | use | contrast |
 |---|---|---|---|---|
 | background | `oklch(0.985 0.008 230)` | `#F2F7F9` | App canvas | - |
-| surface | `oklch(0.965 0.012 228)` | `#E8F0F4` | Studio, plates | - |
+| surface | `oklch(0.965 0.012 228)` | `#E8F0F4` | Thread wash, instruments | - |
 | elevated | `oklch(0.992 0.004 230)` | `#F7FBFC` | Composer, sheets, HITL | - |
 | text | `oklch(0.24 0.028 250)` | `#1A2740` | Body, headings | 13.8:1 on background |
 | muted | `oklch(0.42 0.022 248)` | `#4A5870` | Secondary labels | 6.7:1 |
@@ -60,9 +60,9 @@ Dark mode is a night chart, not OLED glow.
 
 | role | family | use |
 |---|---|---|
-| display | Newsreader | Destination name, day title |
-| body | Geist | Conversation, dossier |
-| utility | Geist Mono | Activity captions, coords, source type |
+| display | Newsreader | Destination name, day title, opening question |
+| body | Geist | Conversation |
+| utility | Geist Mono | Graph pulse, source type |
 
 No Inter, Arial, Fraunces, Instrument Serif, Playfair, or Space Grotesk in product chrome.
 

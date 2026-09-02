@@ -4,11 +4,17 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { emptyTripState } from "@/src/ai/graph/state";
 import type { PublicEvent } from "@/src/ai/stream/public-events";
-import type { StarterId } from "@/src/ai/contracts/http";
-import { AtlasOverlay } from "@/src/features/workspace/studio/AtlasOverlay";
-import { ExecutionRail } from "@/src/features/workspace/studio/ExecutionRail";
-import { TripPlates } from "@/src/features/workspace/studio/TripPlates";
-import { TripStudio } from "@/src/features/workspace/studio/TripStudio";
+import { STARTER_COPY, type StarterId } from "@/src/ai/contracts/http";
+import { getDestination } from "@/data/travel/catalog";
+import { AtlasCompanion } from "@/src/features/workspace/conversation/AtlasCompanion";
+import { Conversation } from "@/src/features/workspace/conversation/Conversation";
+import { GraphPulse } from "@/src/features/workspace/conversation/GraphPulse";
+import {
+  chipFieldForQuestion,
+  matchGuidedReply,
+  matchInterruptReply,
+  resolveInterrupt,
+} from "@/src/features/workspace/conversation/helpers";
 import { latestGraphCaption } from "@/src/features/workspace/atlas/node-status";
 import type { WorkspaceState } from "@/src/features/workspace/types";
 
@@ -36,13 +42,14 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
     mode: "fake",
     tripState: emptyTripState(),
     events: [],
-    lastAssistantText: "",
+    messages: [],
     activeNode: null,
     selectedNode: null,
     atlasOpen: false,
     running: false,
     error: null,
   });
+  const [draft, setDraft] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -60,7 +67,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
       }
       setState((current) => ({ ...current, tripId: payload.tripId!, mode: payload.mode ?? "fake" }));
       if (initialReplay) {
-        await run(payload.tripId, { kind: "replay", starterId: initialReplay });
+        await run(payload.tripId, { kind: "replay", starterId: initialReplay }, STARTER_COPY[initialReplay].label);
       }
     })();
     return () => {
@@ -68,8 +75,15 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
     };
   }, [initialReplay]);
 
-  async function run(tripId: string, body: Record<string, unknown>) {
-    setState((current) => ({ ...current, running: true, error: null, lastAssistantText: "" }));
+  async function run(tripId: string, body: Record<string, unknown>, userText?: string) {
+    setState((current) => ({
+      ...current,
+      running: true,
+      error: null,
+      messages: userText
+        ? [...current.messages, { id: crypto.randomUUID(), role: "user", content: userText }]
+        : current.messages,
+    }));
     const response = await fetch(`/api/trips/${tripId}/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -89,6 +103,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
     }
 
     let assistant = "";
+    const streamingId = "streaming";
     await readNdjson(response, (frame) => {
       if (frame.event) {
         setState((current) => ({
@@ -102,52 +117,57 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
       }
       if (frame.text) {
         assistant += frame.text;
-        setState((current) => ({ ...current, lastAssistantText: assistant }));
+        setState((current) => {
+          const messages = [...current.messages];
+          const last = messages.at(-1);
+          if (last?.id === streamingId) {
+            messages[messages.length - 1] = { ...last, content: assistant };
+          } else {
+            messages.push({ id: streamingId, role: "assistant", content: assistant });
+          }
+          return { ...current, messages };
+        });
       }
     });
-    setState((current) => ({ ...current, running: false }));
+    setState((current) => ({
+      ...current,
+      running: false,
+      messages: current.messages.map((message) =>
+        message.id === streamingId ? { ...message, id: crypto.randomUUID() } : message,
+      ),
+    }));
   }
 
-  function startRun(body: Record<string, unknown>) {
+  function startRun(body: Record<string, unknown>, userText?: string) {
     if (!state.tripId) return;
-    void run(state.tripId, body);
+    void run(state.tripId, body, userText);
   }
 
   return (
     <div className="flex min-h-dvh flex-col bg-background text-text" data-ready={state.tripId ? "true" : "false"}>
       <a
-        href="#studio"
+        href="#conversation"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[80] focus:bg-elevated focus:px-3 focus:py-2"
       >
-        Skip to studio
+        Skip to conversation
       </a>
-      <header className="border-b border-border px-4 py-3 md:px-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-subtle">Route State</p>
-              <p className="text-sm text-muted">Trip Studio</p>
-            </div>
-            <nav className="flex items-center gap-4 text-sm lg:hidden">
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">{state.mode}</span>
-              <Link href="/case-study" className="text-muted hover:text-text">
-                Case study
-              </Link>
-            </nav>
-          </div>
-          <div className="min-w-0 flex-1 lg:max-w-3xl">
-            <TripPlates tripState={state.tripState} />
-          </div>
-          <nav className="hidden items-center gap-4 text-sm lg:flex">
-            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">{state.mode}</span>
-            <Link href="/case-study" className="text-muted hover:text-text">
-              Case study
-            </Link>
-            <a href="https://github.com" className="text-subtle hover:text-text">
-              Built by Denes Papp
-            </a>
-          </nav>
+      <header className="flex items-center justify-between gap-4 border-b border-border px-5 py-3">
+        <div className="min-w-0">
+          <p className="text-sm text-text">Route State</p>
+          <GraphPulse
+            events={state.events}
+            activeNode={state.activeNode}
+            onInspect={() => setState((current) => ({ ...current, atlasOpen: true }))}
+          />
         </div>
+        <nav className="flex shrink-0 items-center gap-4 text-sm">
+          <Link href="/case-study" className="text-muted hover:text-text">
+            Case study
+          </Link>
+          <a href="https://github.com" className="hidden text-subtle hover:text-text sm:inline">
+            Built by Denes Papp
+          </a>
+        </nav>
       </header>
 
       {state.mode === "replay" && (
@@ -163,36 +183,54 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
         {latestGraphCaption(state.events)}
       </div>
 
-      <ExecutionRail
-        events={state.events}
-        activeNode={state.activeNode}
-        onOpenNode={(id) => setState((current) => ({ ...current, selectedNode: id, atlasOpen: true }))}
-      />
-
-      <div className="min-h-0 flex-1">
-        <TripStudio
+      <div className="flex min-h-0 flex-1">
+        <Conversation
+          messages={state.messages}
           tripState={state.tripState}
           events={state.events}
           running={state.running}
-          lastAssistantText={state.lastAssistantText}
-          onStarter={(starterId) => startRun({ kind: "starter", starterId })}
-          onChip={(field, value) => startRun({ kind: "chip", field, value })}
-          onResume={(interruptId, value) => startRun({ kind: "resume", interruptId, value })}
-          onMessage={(text) => startRun({ kind: "message", text })}
+          draft={draft}
+          onDraftChange={setDraft}
+          onStarter={(starterId) => startRun({ kind: "starter", starterId }, STARTER_COPY[starterId].label)}
+          onChip={(field, value) => startRun({ kind: "chip", field, value }, value)}
+          onResume={(interruptId, value) => {
+            const name = getDestination(value)?.name ?? value;
+            startRun({ kind: "resume", interruptId, value }, name);
+          }}
+          onMessage={(text) => {
+            const interrupt = resolveInterrupt(state.tripState, state.events);
+            if (interrupt) {
+              const matched = matchInterruptReply(text, interrupt, state.tripState.candidateDestinations);
+              if (matched) {
+                setDraft("");
+                startRun({ kind: "resume", interruptId: interrupt.interruptId, value: matched }, text);
+                return;
+              }
+            }
+            if (state.tripState.currentPlanningStage === "gathering" && state.tripState.guidedOptions.length) {
+              const field = chipFieldForQuestion(state.tripState.lastQuestion);
+              const matched = matchGuidedReply(text, state.tripState.guidedOptions, field);
+              if (matched) {
+                setDraft("");
+                startRun({ kind: "chip", field, value: matched }, text);
+                return;
+              }
+            }
+            setDraft("");
+            startRun({ kind: "message", text }, text);
+          }}
         />
-      </div>
-
-      {state.atlasOpen && (
-        <AtlasOverlay
+        <AtlasCompanion
           events={state.events}
           activeNode={state.activeNode}
           selectedNode={state.selectedNode}
           tripState={state.tripState}
+          sheetOpen={state.atlasOpen}
           onSelect={(id) => setState((current) => ({ ...current, selectedNode: id }))}
           onClearSelected={() => setState((current) => ({ ...current, selectedNode: null }))}
-          onClose={() => setState((current) => ({ ...current, atlasOpen: false, selectedNode: null }))}
+          onCloseSheet={() => setState((current) => ({ ...current, atlasOpen: false }))}
         />
-      )}
+      </div>
     </div>
   );
 }

@@ -20,5 +20,5 @@ export function statusFor(
 
 export function latestGraphCaption(events: PublicEvent[]): string {
   const latest = [...events].reverse().find((event) => event.type === "graph");
-  return latest && latest.type === "graph" ? latest.caption : "The graph is idle until a trip starts.";
+  return latest && latest.type === "graph" ? latest.caption : "Quiet until you start.";
 }

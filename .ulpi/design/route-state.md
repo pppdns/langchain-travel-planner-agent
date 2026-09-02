@@ -4,61 +4,50 @@ Identity lock: every screen must read as the same product if placed side by side
 
 ## Goal
 
-A recruiter lands in the product, starts a trip in one click, and sees a usable itinerary. LangGraph execution stays visible as a compact rail and an inspectable atlas overlay.
+A recruiter lands in a conversation, starts a trip in one click or a sentence, and watches the same thread gather facts, pause for a destination, and write an itinerary. LangGraph stays visible in the margin.
 
 ## Layout
 
-The workspace is a Trip Studio. Destinations and the day folio are the hero. The atlas is not the default canvas.
+Conversation is the product. There are no stage pages.
 
-Desktop (>=1280): full-width studio. 72px execution rail above the hero. React Flow opens as a sheet when a rail node is clicked. Inspector lives in that sheet.
+Desktop (>=1280): a left conversation column and a persistent atlas sheet in the right margin. Inspector sits under the atlas, same page.
 
-Laptop (1024-1279): same hierarchy, tighter plates.
+Laptop (1024-1279): conversation is primary. Atlas collapses to the living graph sentence; the sheet opens in place.
 
-Tablet and mobile: 48px masthead, 120px execution rail, studio hero. HITL, folio, and atlas inspection work in the same column or a sheet. Complete at 390px.
+Mobile: full-width thread, sticky composer, 44px targets. Atlas opens as a sheet from the graph sentence. HITL and itinerary stay in the thread at 390px.
 
 ## Primary flow
 
-Land anonymous -> four starter plates -> gather missing fields as visual pickers -> destination cards -> day folio -> optional revise drawer.
+Land anonymous -> opening question in the thread -> type or pick a start -> answers appear as instruments under the last reply -> destination shortlist in the same turn -> itinerary unfolds in the thread -> revise by typing.
 
-Drive the hero from `tripState.currentPlanningStage` and `pendingInterrupt`, not from a chat transcript.
-
-| Stage | Hero | User action |
-|---|---|---|
-| Empty / intake | Four starter plates | Click a plate |
-| Gathering | One visual picker (nights, trip type) | Click a tile |
-| Discovering | Three card skeletons + rail motion | Wait |
-| Awaiting destination | Three destination cards | Choose one |
-| Researching / planning | Chosen destination plate + folio assembling | Watch |
-| Complete | Destination hero + day folio | Revise |
-| Off-scope | Short redirect card + the four plates again | Start a trip |
+Drive instruments from `tripState` and `pendingInterrupt`. Drive history from `messages[]`. Never show raw starter IDs. A typed reply that matches a listed option resumes the interrupt. Historical interrupt events do not stay on screen after the trip moves on.
 
 ## Components
 
-- `TripStudio`: stage switcher and main column.
-- `StarterPlate`: full-bleed cartographic card. Copy stays the existing starter labels.
-- `DestinationCard`: Newsreader name, country, trait pictograms, qualitative fit, evidence titles. Source is `tripState.candidateDestinations`.
-- `DayFolio`: one plate per day with stop tiles keyed by `kind`.
-- `ExecutionRail`: compact `GRAPH_SPEC` sequence. Vermillion for committed edges. Latest public `graph` caption is the activity feed.
-- `TripPlates`: Destination / Dates / Travelers / Budget, filled as state arrives.
-- `ReviseDrawer`: composer only after an itinerary exists, plus visual revision actions.
-- `OrchestrationAtlas`: React Flow canvas in an overlay sheet. Do not delete the graph.
+- `Conversation`: scrollable thread, opening, instruments, composer.
+- `Composer`: always-on labeled textarea, Enter to send, Shift+Enter for a new line.
+- `ChoiceInstrument`: keyboard list for gathering.
+- `DestinationInstrument`: ranked shortlist from `candidateDestinations`, arrow keys and Enter.
+- `FolioInstrument`: day list in the assistant turn, expand a day for notes.
+- `GraphPulse`: one living caption from the latest public `graph` event.
+- `AtlasCompanion`: persistent React Flow sheet in the margin; sheet on small screens.
 - `NodeInspector`: L0 caption, L1 tools/evidence, L2 public diffs and usage.
 - `ReplayBanner`: honest recorded-run label.
 
 ## States
 
-Empty, gathering, discovering, HITL destination, researching, planning, HITL tradeoff, itinerary ready, off-scope, rate limited, error, offline, refresh mid-run, replay, budget exhausted.
+Empty, gathering, streaming, HITL destination, researching, planning, HITL tradeoff, itinerary ready, off-scope, rate limited, error, offline, refresh mid-run, replay, budget exhausted.
 
 ## Accessibility
 
-Visible 2px accent focus, keyboard pickers and HITL, polite live region for latest node label only, reduced motion snaps the path, 44px targets, AA contrast from DESIGN.md.
+Visible 2px accent focus, keyboard instruments and HITL, polite live region for latest node label only, reduced motion snaps the path, 44px targets, AA contrast from DESIGN.md.
 
 ## Acceptance
 
-- First screen is four starter plates, not an empty composer.
-- Studio is primary. Atlas is a rail plus overlay.
+- First screen is a question in a conversation plus a composer, not a card gallery.
+- The thread never navigates away. Instruments arrive in the last turn.
+- Atlas is visible without changing pages on desktop.
 - Route line tracks real graph events.
-- Destination HITL is ranked cards synchronized to graph branches.
+- Destination HITL is a ranked list synchronized to graph branches. Number keys, Enter, or a typed name all choose.
 - Activity uses the public event vocabulary only.
 - Replay is labeled and uses the same event protocol.
-- No persistent chat transcript. No raw starter IDs as user-visible text.
