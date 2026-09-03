@@ -37,8 +37,8 @@ export function GraphPulse({
   activeNode: GraphNodeId | null;
   running?: boolean;
   progressLabel?: string;
-  onInspect: () => void;
-  surface: "desktop" | "mobile";
+  onInspect?: () => void;
+  surface: "desktop" | "mobile" | "caption";
 }) {
   const [tick, setTick] = useState(0);
   const graphCaption = latestGraphCaption(events);
@@ -52,7 +52,7 @@ export function GraphPulse({
     return () => window.clearInterval(id);
   }, [progressLabel, running]);
 
-  if (surface === "desktop") {
+  if (surface === "desktop" || surface === "caption") {
     return (
       <p className="flex max-w-full items-center gap-2 truncate font-mono text-[12px] text-muted">
         <PulseCopy live={live} label={label} caption={caption} />

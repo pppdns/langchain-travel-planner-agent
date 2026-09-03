@@ -7,7 +7,7 @@ import { emptyTripState, publicTripStateSchema, type PublicTripState } from "@/s
 import type { PublicEvent } from "@/src/ai/stream/public-events";
 import { STARTER_COPY, type StarterId } from "@/src/ai/contracts/http";
 import { getDestination } from "@/data/travel/catalog";
-import { AtlasCompanion } from "@/src/features/workspace/conversation/AtlasCompanion";
+import { AtlasCompanion, AtlasPeek } from "@/src/features/workspace/conversation/AtlasCompanion";
 import { Conversation } from "@/src/features/workspace/conversation/Conversation";
 import { GraphPulse } from "@/src/features/workspace/conversation/GraphPulse";
 import { TripBrief } from "@/src/features/workspace/conversation/TripBrief";
@@ -186,14 +186,14 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background text-text" data-ready={state.tripId ? "true" : "false"}>
+    <div className="flex h-dvh flex-col overflow-hidden bg-background text-text" data-ready={state.tripId ? "true" : "false"}>
       <a
         href="#conversation"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[80] focus:bg-elevated focus:px-3 focus:py-2"
       >
         Skip to conversation
       </a>
-      <header className="border-b border-border px-5 py-3 lg:h-16 lg:py-0">
+      <header className="shrink-0 border-b border-border px-5 py-3 lg:h-16 lg:py-0">
         <div className="flex items-center justify-between gap-4 lg:h-full">
           <div className="flex min-w-0 items-baseline gap-3">
             <p className="font-display text-sm font-semibold tracking-[0.14em] text-text">ROUTE STATE</p>
@@ -233,26 +233,27 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
             </a>
           </nav>
         </div>
-        <div className="mt-1 lg:hidden">
-          <GraphPulse
+        <div className="mt-2 lg:hidden">
+          <AtlasPeek
             events={state.events}
             activeNode={state.activeNode}
             running={state.running}
             progressLabel={presence.label}
-            surface="mobile"
-            onInspect={() => setState((current) => ({ ...current, atlasOpen: true }))}
+            onOpen={() => setState((current) => ({ ...current, atlasOpen: true }))}
           />
-          <TripBrief tripState={state.tripState} compact />
+          <div className="mt-1.5">
+            <TripBrief tripState={state.tripState} compact />
+          </div>
         </div>
       </header>
 
       {state.mode === "replay" && (
-        <div className="border-b border-warning/30 bg-elevated px-5 py-2 text-sm text-warning">
+        <div className="shrink-0 border-b border-warning/30 bg-elevated px-5 py-2 text-sm text-warning">
           Recorded run. The events are the same public protocol as live planning.
         </div>
       )}
       {state.error && (
-        <div className="border-b border-danger/30 bg-elevated px-5 py-2 text-sm text-danger">{state.error}</div>
+        <div className="shrink-0 border-b border-danger/30 bg-elevated px-5 py-2 text-sm text-danger">{state.error}</div>
       )}
 
       <div aria-live="polite" className="sr-only">

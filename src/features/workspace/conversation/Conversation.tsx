@@ -271,7 +271,7 @@ export function Conversation({
 
   return (
     <section id="conversation" className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="desk-field min-h-0 flex-1 overflow-y-auto px-5 py-7 md:px-8 md:py-9">
+      <div className="desk-field min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 py-7 md:px-8 md:py-9">
         {messages.length === 0 && <Opening disabled={running} onStarter={onStarter} />}
 
         <div className={cn("mx-auto w-full max-w-[40rem] space-y-5", messages.length === 0 && "hidden")}>
