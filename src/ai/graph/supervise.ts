@@ -4,6 +4,15 @@ import { generateText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import { DESTINATIONS, getDestination } from "@/data/travel/catalog";
 import {
+  capabilityLimitReply,
+  detectCapabilityLimit,
+  looksLikePresentAsk,
+  looksLikeSelfAsk,
+  mentionsCapabilityLimit,
+  missingPlanReply,
+  selfAwareReply,
+} from "@/src/ai/graph/capability";
+import {
   applyRevision,
   detectRevision,
   resetForRediscovery,
@@ -70,14 +79,17 @@ const STEER_TAILS = [
 
 const SUPERVISOR_SYSTEM = [
   "You are Route State's travel supervisor. The scope guard already ran. Stay on travel.",
-  "Answer the latest user message. The first sentence must name their key ask and the place, for example: You asked about the weather in Faro.",
+  "Answer the latest user message in freeform travel chat. Chips are optional shortcuts, not the only path.",
+  "The first sentence must name their key ask and the place when a place is known, for example: You asked about the weather in Faro.",
   "Resolve words like there or it from the current trip destination.",
-  "Use tool results only. Do not invent weather, prices, or bookings.",
+  "Use tool results only. Do not invent weather, prices, hotel names, or bookings.",
+  "You are a hiring demo with a fixed European city catalog. You can rank catalog places, check weather, draft days, and revise a plan. You cannot book hotels, reserve tables, buy tickets, take payments, or quote live hotel or flight prices.",
+  "If they ask for something you cannot do, say so in the first sentence, name the demo and catalog limit, then offer one next step you can do.",
+  "If they asked to see the plan and an itinerary exists, do not lecture. Hand off to present. If there is no itinerary yet, say so and offer the next planning step.",
   "Do not dump the full itinerary unless they asked for the plan or a revision.",
   "If the trip is not planned yet, keep planning after you answer: ask the next missing field, offer a visible next step, or route to research when the destination is known, or discover when it is not.",
   "Never leave an unfinished plan without a next question or a choice. If the user only answered an intake field such as city or 4, do not end the turn.",
   "If you offer 2 to 6 concrete choices, list them as a numbered list. Those become the on-screen chips. Do not also ask what kind of trip in that same reply.",
-  "This is a hiring demo with a fixed European city catalog. Never invent destinations outside it.",
   "If they ask for other options after candidates are already shown, say the catalog is fixed, name those ranked matches, and do not invent a new list.",
   "No em-dashes. No fake match percentages.",
 ].join(" ");
@@ -259,7 +271,9 @@ function stripSteerTails(text: string) {
 
 function isContinueIntent(state: SupervisorInput) {
   const text = state.inputText.toLowerCase();
-  if (state.inputKind === "chip" && text.startsWith("continue:")) return true;
+  if (state.inputKind === "chip" && text.startsWith("continue:")) {
+    return !looksLikePresentAsk(text);
+  }
   return /draft the days|find destinations|continue planning/.test(text);
 }
 
@@ -497,7 +511,7 @@ async function runLiveSupervisor(
       tier: routeModelTier("supervise"),
       schema: supervisorRouteSchema,
       system:
-        "Choose the next Route State graph move. If the user asked a question and there is no itinerary yet, choose answer. Do not jump to discover, research, or plan just because a destination is known. If they ask for other destinations and candidates are already listed, choose answer and admit the catalog is fixed. answer ends the turn. discover/research/plan/present hand off to specialist nodes. await_destination only if a destination choice is already pending and they are picking a place, not asking a question. If the draft lists 2 to 6 concrete choices, copy them into options and set question to the sentence that asks which to pick. Use only the supplied facts.",
+        "Choose the next Route State graph move. If the user asked a question, a booking they cannot do, or what this demo can do, choose answer. Do not jump to discover, research, or plan just because a destination is known. If they asked to see the plan and an itinerary exists, choose present. If they ask for other destinations and candidates are already listed, choose answer and admit the catalog is fixed. answer ends the turn. discover/research/plan/present hand off to specialist nodes. await_destination only if a destination choice is already pending and they are picking a place, not asking a question. If the draft lists 2 to 6 concrete choices, copy them into options and set question to the sentence that asks which to pick. Use only the supplied facts.",
       prompt: [
         `User message: ${state.inputText}`,
         `Trip: ${tripBrief(state.trip)}`,
@@ -550,6 +564,34 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
   if (isContinueIntent(state)) {
     const advance = nextPlanningRoute(trip) ?? ( /find destinations/.test(haystack) ? "discover" : "research");
     return finishRoute({ trip, text, route: advance });
+  }
+
+  if (looksLikePresentAsk(text)) {
+    if (trip.itinerary) {
+      return finishRoute({ trip, text, route: "present" });
+    }
+    return withPlanningSteer({
+      trip,
+      text,
+      assistantText: missingPlanReply(trip),
+    });
+  }
+
+  const limit = detectCapabilityLimit(text);
+  if (limit) {
+    return withPlanningSteer({
+      trip,
+      text,
+      assistantText: capabilityLimitReply(trip, limit),
+    });
+  }
+
+  if (looksLikeSelfAsk(text)) {
+    return withPlanningSteer({
+      trip,
+      text,
+      assistantText: selfAwareReply(trip),
+    });
   }
 
   if (
@@ -629,10 +671,6 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
     }
   }
 
-  if (/show (?:the |my )?plan|see the (?:plan|itinerary)|full itinerary/.test(haystack) && trip.itinerary) {
-    return finishRoute({ trip, text, route: "present" });
-  }
-
   if (trip.itinerary) {
     const revision = detectRevision(text);
     if (revision === "another-destination") {
@@ -677,6 +715,24 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
   }
 
   if (asked) {
+    const slug = resolveSlug(trip, text);
+    if (slug) {
+      assertToolAllowed("route_supervisor", "search_travel_knowledge");
+      const knowledge = await searchTravelKnowledge.execute({
+        query: text,
+        destinationSlug: slug,
+        live,
+      });
+      const destination = getDestination(slug);
+      const titles = knowledge.items.map((item) => item.title).slice(0, 2);
+      const detail = titles.length ? titles.join("; ") : destination?.summary ?? placeName(trip);
+      return withPlanningSteer({
+        trip,
+        text,
+        assistantText: `You asked about ${destination?.name ?? placeName(trip)}. ${detail}`,
+        evidence: knowledge.items.slice(0, 3),
+      });
+    }
     return withPlanningSteer({
       trip,
       text,
@@ -709,6 +765,36 @@ export function finalizeSupervisor(state: SupervisorInput, result: SupervisorRes
       trip: result.trip,
       text: state.inputText,
       route: advance,
+      evidence,
+    });
+  }
+
+  if (looksLikePresentAsk(state.inputText) && result.trip.itinerary) {
+    return finishRoute({
+      trip: result.trip,
+      text: state.inputText,
+      route: "present",
+      evidence,
+    });
+  }
+
+  const limit = detectCapabilityLimit(state.inputText);
+  if (limit) {
+    const draft = result.assistantText?.trim() ?? "";
+    return withPlanningSteer({
+      trip: result.trip,
+      text: state.inputText,
+      assistantText: mentionsCapabilityLimit(draft) ? draft : capabilityLimitReply(result.trip, limit),
+      evidence,
+    });
+  }
+
+  if (looksLikeSelfAsk(state.inputText)) {
+    const draft = result.assistantText?.trim() ?? "";
+    return withPlanningSteer({
+      trip: result.trip,
+      text: state.inputText,
+      assistantText: mentionsCapabilityLimit(draft) ? draft : selfAwareReply(result.trip),
       evidence,
     });
   }

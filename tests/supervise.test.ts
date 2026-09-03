@@ -489,6 +489,70 @@ describe("supervisor routing", () => {
     expect(steered.assistantText).toMatch(/Faro \/ Algarve/);
     expect(steered.trip.pendingInterrupt?.interruptType).toBe("choose_destination");
   });
+
+  it("admits it cannot book during destination choice and keeps the cards", async () => {
+    const threadId = "book-hotel-during-decide";
+    const first = await runTripGraph({
+      threadId,
+      request: { kind: "starter", starterId: "family-beach-europe", idempotencyKey: "book-decide-a" },
+      existing: applyStarterSeed("family-beach-europe"),
+    });
+    const asked = await runTripGraph({
+      threadId,
+      request: { kind: "message", text: "book me a hotel", idempotencyKey: "book-decide-b" },
+      existing: tripStateSchema.parse(first.tripState),
+    });
+    expect(asked.assistantText).toMatch(/can't/i);
+    expect(asked.assistantText).toMatch(/hiring demo/i);
+    expect(asked.assistantText).toMatch(/pick a destination/i);
+    expect(asked.tripState.pendingInterrupt?.interruptType).toBe("choose_destination");
+    expect(asked.tripState.lastTurnKind).toBe("answer");
+  });
+
+  it("admits it cannot book a hotel and keeps planning", async () => {
+    const asked = await runTripGraph({
+      threadId: "book-hotel-limit",
+      request: { kind: "message", text: "book me a hotel", idempotencyKey: "book-hotel-a" },
+      existing: emptyTripState(),
+    });
+    expect(asked.assistantText).toMatch(/can't/i);
+    expect(asked.assistantText).toMatch(/hiring demo/i);
+    expect(asked.assistantText).toMatch(/fixed catalog/i);
+    expect(asked.tripState.pendingInterrupt).toBeNull();
+    expect(asked.tripState.lastTurnKind).toBe("answer");
+    expect(asked.tripState.guidedOptions.length).toBeGreaterThan(0);
+  });
+
+  it("shows the plan when asked instead of lecturing about limits", async () => {
+    const threadId = "show-plan-direct";
+    const first = await runTripGraph({
+      threadId,
+      request: { kind: "starter", starterId: "family-beach-europe", idempotencyKey: "show-plan-a" },
+      existing: applyStarterSeed("family-beach-europe"),
+    });
+    expect(first.interrupted).toBe(true);
+    const planned = await runTripGraph({
+      threadId,
+      request: {
+        kind: "resume",
+        interruptId: first.tripState.pendingInterrupt?.interruptId ?? "choose-destination",
+        value: "faro",
+        idempotencyKey: "show-plan-b",
+      },
+      existing: tripStateSchema.parse(first.tripState),
+    });
+    expect(planned.tripState.destinationSlug).toBe("faro");
+    expect(planned.tripState.itinerary?.destinationSlug).toBe("faro");
+
+    const shown = await runTripGraph({
+      threadId,
+      request: { kind: "message", text: "show me my plan", idempotencyKey: "show-plan-c" },
+      existing: tripStateSchema.parse(planned.tripState),
+    });
+    expect(shown.assistantText).toMatch(/plan for Faro/i);
+    expect(shown.assistantText).not.toMatch(/hiring demo/i);
+    expect(shown.tripState.lastTurnKind).toBe("plan");
+  });
 });
 
 describe("live presentation on answer turns", () => {
