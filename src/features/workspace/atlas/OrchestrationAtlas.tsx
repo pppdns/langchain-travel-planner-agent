@@ -203,15 +203,17 @@ export function OrchestrationAtlas({
   );
 
   return (
-    <div className="atlas-sheet relative h-full min-h-0 overflow-hidden rounded-[12px] border border-border">
+    <div className="atlas-sheet relative h-full min-h-[min(280px,42vh)] flex-1 overflow-hidden rounded-[12px] border border-border">
       {!mounted ? null : (
         <ReactFlowProvider>
+          <div className="h-full w-full">
           <AtlasCanvas
             events={events}
             activeNode={activeNode}
             selectedNode={selectedNode}
             onSelect={onSelect}
           />
+          </div>
         </ReactFlowProvider>
       )}
     </div>

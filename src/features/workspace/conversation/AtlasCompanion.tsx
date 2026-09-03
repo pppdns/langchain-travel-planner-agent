@@ -27,8 +27,8 @@ function AtlasBody({
   onForget?: (key: string) => void;
 }) {
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 p-3">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col p-3">
         <OrchestrationAtlas
           events={events}
           activeNode={activeNode}
@@ -84,12 +84,13 @@ export function AtlasCompanion({
       <aside
         role="region"
         aria-label="Orchestration Atlas"
-        className="hidden h-full min-h-0 flex-col overflow-hidden border-l border-border bg-surface lg:flex lg:w-[min(46vw,640px)]"
+        className="hidden min-h-0 flex-col border-l border-border bg-surface lg:flex lg:w-[min(46vw,640px)]"
       >
-        <div className="flex items-baseline justify-between px-4 pt-4">
+        <div className="flex shrink-0 items-baseline justify-between px-4 pt-4">
           <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-subtle">Orchestration Atlas</p>
           <p className="font-mono text-[11px] text-subtle">Live path</p>
         </div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <AtlasBody
           events={events}
           activeNode={activeNode}
@@ -99,6 +100,7 @@ export function AtlasCompanion({
           onClearSelected={onClearSelected}
           onForget={onForget}
         />
+        </div>
       </aside>
 
       {sheetOpen && (
