@@ -44,6 +44,38 @@ test("mobile atlas preview opens a top overlay", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: /orchestration atlas/i })).toHaveCount(0);
 });
 
+test("unknown facts name the gap and keep destination cards", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("[data-ready='true']")).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: /warm family beach in europe/i }).click();
+  await expect(page.getByRole("heading", { name: /choose a destination/i })).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.locator("#composer").fill("do they have wifi in Faro?");
+  await page.getByRole("button", { name: /^send$/i }).click();
+  await expect(page.getByText(/don't have an answer/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/wifi/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /choose a destination/i })).toBeVisible();
+  await page.getByRole("option", { name: /faro/i }).click();
+  await expect(page.getByText(/day 1/i)).toBeVisible({ timeout: 20_000 });
+});
+
+test("a USA destination ask names the catalog limit", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("[data-ready='true']")).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: /warm family beach in europe/i }).click();
+  await expect(page.getByRole("heading", { name: /choose a destination/i })).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.locator("#composer").fill("any destination in the USA?");
+  await page.getByRole("button", { name: /^send$/i }).click();
+  await expect(page.getByText(/no destinations in the USA/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/demo catalog|hiring demo|fixed set/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /choose a destination/i })).toBeVisible();
+  await page.getByRole("option", { name: /faro/i }).click();
+  await expect(page.getByText(/day 1/i)).toBeVisible({ timeout: 20_000 });
+});
+
 test("other options names the fixed catalog", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("[data-ready='true']")).toBeVisible({ timeout: 15_000 });

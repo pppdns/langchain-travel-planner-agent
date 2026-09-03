@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   capabilityLimitReply,
   detectCapabilityLimit,
+  detectOutOfCatalogAsk,
   looksLikePresentAsk,
   looksLikeSelfAsk,
   missingPlanReply,
+  outOfCatalogReply,
 } from "@/src/ai/graph/capability";
 import { isOffScope } from "@/src/ai/guardrails/scope";
 import { emptyTripState } from "@/src/ai/graph/state";
@@ -30,6 +32,36 @@ describe("capability and scope", () => {
     expect(reply).toMatch(/hiring demo/i);
     expect(reply).toMatch(/fixed catalog/i);
     expect(reply).toMatch(/share a destination or a vibe/i);
+  });
+
+  it("detects places outside the European catalog", () => {
+    expect(detectOutOfCatalogAsk("any destination in the USA?")).toBe("the USA");
+    expect(detectOutOfCatalogAsk("what about Tokyo?")).toBe("Japan");
+    expect(detectOutOfCatalogAsk("somewhere in Asia")).toBe("Asia");
+    expect(detectOutOfCatalogAsk("any destination in Norway?")).toBe("Norway");
+    expect(detectOutOfCatalogAsk("is Faro walkable?")).toBeNull();
+    expect(detectOutOfCatalogAsk("any destination in Portugal?")).toBeNull();
+    expect(detectOutOfCatalogAsk("best beer halls in Munich")).toBeNull();
+    expect(detectOutOfCatalogAsk("weather in Faro?")).toBeNull();
+  });
+
+  it("names the missing region and keeps catalog choices", () => {
+    const trip = {
+      ...emptyTripState(),
+      candidateDestinations: [
+        { slug: "faro", name: "Faro / Algarve", country: "Portugal", summary: "", fit: "strong" as const, factors: [], evidence: [] },
+        { slug: "malaga", name: "Málaga", country: "Spain", summary: "", fit: "strong" as const, factors: [], evidence: [] },
+        { slug: "chania", name: "Chania", country: "Greece", summary: "", fit: "strong" as const, factors: [], evidence: [] },
+      ],
+    };
+    const reply = outOfCatalogReply(trip, "the USA");
+    expect(reply).toMatch(/USA/);
+    expect(reply).toMatch(/no destinations in the USA/i);
+    expect(reply).toMatch(/hiring demo/i);
+    expect(reply).toMatch(/fixed set/i);
+    expect(reply).toMatch(/Faro \/ Algarve/);
+    expect(reply).toMatch(/Málaga/);
+    expect(reply).toMatch(/Chania/);
   });
 
   it("does not lecture when they only asked to see the plan", () => {

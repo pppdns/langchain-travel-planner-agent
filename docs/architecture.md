@@ -31,8 +31,8 @@ Interview map:
 | How do you authorize tools? | `src/ai/tools/catalog.ts` `NODE_TOOL_ALLOWLIST` |
 | How do you revise a finished plan? | `src/ai/graph/revisions.ts` on the same thread |
 | How do freeform turns stay on the graph? | `src/ai/graph/supervise.ts` ReAct supervisor answers or routes; unfinished questions keep a next choice; `lastTurnKind` gates the folio |
-| How do you admit catalog limits? | `src/ai/graph/supervise.ts` answers more-options asks from the fixed demo catalog without inventing destinations |
-| How does the agent know what it cannot do? | `src/ai/graph/capability.ts` plus `src/ai/guardrails/scope.ts`: booking and live inventory stay on travel and name the demo limit; beer recipes and code leave the graph |
+| How do you admit catalog limits? | `src/ai/graph/supervise.ts` answers more-options asks and out-of-catalog geography from the fixed European demo catalog without inventing destinations |
+| How does the agent know what it cannot do? | `src/ai/graph/answer.ts` grounds questions in catalog facts or names the gap; `src/ai/graph/capability.ts` plus `src/ai/guardrails/scope.ts` cover booking, live inventory, and off-scope how-tos |
 | How do live models stay optional? | `src/lib/env.ts` `isLiveModelsEnabled` + graph `configurable.liveModels` |
 | How do you stream tokens without leaking prompts? | `src/ai/stream/bridge.ts` `createAssistantStream` over the same NDJSON contract |
 | How does retrieval stay public-safe? | `src/ai/retrieval/hybrid.ts` returns titles only; chunk bodies never stream |

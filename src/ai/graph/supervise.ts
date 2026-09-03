@@ -4,12 +4,22 @@ import { generateText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import { DESTINATIONS, getDestination } from "@/data/travel/catalog";
 import {
+  catalogFactAnswer,
+  looksLikeUserQuestion,
+  replyAddressesAsk,
+  unansweredAskReply,
+} from "@/src/ai/graph/answer";
+import {
   capabilityLimitReply,
   detectCapabilityLimit,
+  detectOutOfCatalogAsk,
   looksLikePresentAsk,
   looksLikeSelfAsk,
   mentionsCapabilityLimit,
+  mentionsOutOfCatalog,
   missingPlanReply,
+  nextCapableHint,
+  outOfCatalogReply,
   selfAwareReply,
 } from "@/src/ai/graph/capability";
 import {
@@ -81,9 +91,11 @@ const SUPERVISOR_SYSTEM = [
   "You are Route State's travel supervisor. The scope guard already ran. Stay on travel.",
   "Answer the latest user message in freeform travel chat. Chips are optional shortcuts, not the only path.",
   "The first sentence must name their key ask and the place when a place is known, for example: You asked about the weather in Faro.",
+  "Answer the question they asked. If the catalog, weather tool, or trip state cannot answer it, say you do not have that in this demo and name the limit. Never ignore the question or reply as if they only asked about the current trip.",
   "Resolve words like there or it from the current trip destination.",
   "Use tool results only. Do not invent weather, prices, hotel names, or bookings.",
   "You are a hiring demo with a fixed European city catalog. You can rank catalog places, check weather, draft days, and revise a plan. You cannot book hotels, reserve tables, buy tickets, take payments, or quote live hotel or flight prices.",
+  "If they ask for a country, region, or city that is not in the catalog, say there are no such places in this demo catalog, name the fixed European set, and keep the current choices. Do not invent destinations outside the catalog.",
   "If they ask for something you cannot do, say so in the first sentence, name the demo and catalog limit, then offer one next step you can do.",
   "If they asked to see the plan and an itinerary exists, do not lecture. Hand off to present. If there is no itinerary yet, say so and offer the next planning step.",
   "Do not dump the full itinerary unless they asked for the plan or a revision.",
@@ -100,14 +112,6 @@ function threadIdFrom(config?: LangGraphRunnableConfig) {
 
 function placeName(trip: TripState) {
   return trip.destinationName ?? trip.destinationSlug ?? "this trip";
-}
-
-function looksLikeUserQuestion(text: string) {
-  const trimmed = text.trim();
-  return (
-    /\?\s*$/.test(trimmed) ||
-    /^(what|what's|whats|how|is|are|does|do|can|could|where|when|why|which)\b/i.test(trimmed)
-  );
 }
 
 export function looksLikeMoreOptionsAsk(text: string) {
@@ -159,14 +163,13 @@ function boundedChoiceReply(trip: TripState) {
 }
 
 function resolveSlug(trip: TripState, text = "") {
-  if (trip.destinationSlug) return trip.destinationSlug;
   const matched = matchCatalogDestination(text);
   if (matched) return matched.slug;
   const haystack = text.toLowerCase();
   const mentioned = trip.candidateDestinations.find(
     (item) => haystack.includes(item.slug) || haystack.includes(item.name.toLowerCase()),
   );
-  return mentioned?.slug;
+  return mentioned?.slug ?? trip.destinationSlug;
 }
 
 export function nextSteer(trip: TripState): { question: string; options: string[] } | null {
@@ -267,6 +270,33 @@ function stripSteerTails(text: string) {
     next = next.replace(pattern, "").trim();
   }
   return next;
+}
+
+function wantsHiking(text: string) {
+  return /hike|hiking|trek|trail|alpine|landscape/.test(text.toLowerCase());
+}
+
+function hikingDirectionsReply() {
+  return [
+    "A few European hiking directions:",
+    "",
+    "1. Mountains and alpine lakes",
+    "2. Coastal cliffs and sea views",
+    "3. Volcanoes and dramatic terrain",
+    "4. Forests, waterfalls, and valleys",
+    "",
+    "Which sounds most like your ideal hike?",
+  ].join("\n");
+}
+
+function outOfCatalogAssistantText(trip: TripState, text: string, askedPlace: string) {
+  const base = outOfCatalogReply(trip, askedPlace);
+  const destPending =
+    trip.pendingInterrupt?.interruptType === "choose_destination" && trip.destinationStatus !== "known";
+  if (wantsHiking(text) && !trip.itinerary && !destPending) {
+    return `${base}\n\n${hikingDirectionsReply()}`;
+  }
+  return base;
 }
 
 function isContinueIntent(state: SupervisorInput) {
@@ -511,7 +541,7 @@ async function runLiveSupervisor(
       tier: routeModelTier("supervise"),
       schema: supervisorRouteSchema,
       system:
-        "Choose the next Route State graph move. If the user asked a question, a booking they cannot do, or what this demo can do, choose answer. Do not jump to discover, research, or plan just because a destination is known. If they asked to see the plan and an itinerary exists, choose present. If they ask for other destinations and candidates are already listed, choose answer and admit the catalog is fixed. answer ends the turn. discover/research/plan/present hand off to specialist nodes. await_destination only if a destination choice is already pending and they are picking a place, not asking a question. If the draft lists 2 to 6 concrete choices, copy them into options and set question to the sentence that asks which to pick. Use only the supplied facts.",
+        "Choose the next Route State graph move. If the user asked a question, a booking they cannot do, or what this demo can do, choose answer. Do not jump to discover, research, or plan just because a destination is known. If they asked to see the plan and an itinerary exists, choose present. If they ask for other destinations and candidates are already listed, choose answer and admit the catalog is fixed. If they ask for a place outside the catalog, or anything the draft cannot actually answer, choose answer and say so. Never pick a reply that ignores the question. answer ends the turn. discover/research/plan/present hand off to specialist nodes. await_destination only if a destination choice is already pending and they are picking a place, not asking a question. If the draft lists 2 to 6 concrete choices, copy them into options and set question to the sentence that asks which to pick. Use only the supplied facts.",
       prompt: [
         `User message: ${state.inputText}`,
         `Trip: ${tripBrief(state.trip)}`,
@@ -594,6 +624,15 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
     });
   }
 
+  const outside = detectOutOfCatalogAsk(text);
+  if (outside) {
+    return withPlanningSteer({
+      trip,
+      text,
+      assistantText: outOfCatalogAssistantText(trip, text, outside),
+    });
+  }
+
   if (
     trip.pendingInterrupt?.interruptType === "choose_destination" &&
     trip.destinationStatus !== "known" &&
@@ -602,22 +641,13 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
     return finishRoute({ trip, text, route: "await_destination" });
   }
 
-  if (/hike|hiking|trek|trail|alpine|landscape/.test(haystack) && !trip.itinerary) {
+  if (wantsHiking(text) && !trip.itinerary && !(looksLikeUserQuestion(text) && matchCatalogDestination(text))) {
     return withPlanningSteer({
       trip,
       text,
-      assistantText: [
-        "You asked for a destination with beautiful hiking landscapes.",
-        "",
-        "A few directions to choose from:",
-        "",
-        "1. Mountains and alpine lakes",
-        "2. Coastal cliffs and sea views",
-        "3. Volcanoes and dramatic terrain",
-        "4. Forests, waterfalls, and valleys",
-        "",
-        "Which sounds most like your ideal hike?",
-      ].join("\n"),
+      assistantText: ["You asked for a destination with beautiful hiking landscapes.", "", hikingDirectionsReply()].join(
+        "\n",
+      ),
     });
   }
 
@@ -634,6 +664,17 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
         evidence: [weatherEvidence(slug)],
       });
     }
+    if (looksLikeUserQuestion(text)) {
+      return withPlanningSteer({
+        trip,
+        text,
+        assistantText: [
+          "You asked about the weather.",
+          "I need a destination from this demo catalog before I can check it.",
+          nextCapableHint(trip),
+        ].join(" "),
+      });
+    }
   }
 
   const dayMatch = haystack.match(/\bday\s*(\d+)\b/);
@@ -645,28 +686,6 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
         trip,
         text,
         assistantText: `You asked about Day ${day.day} in ${placeName(trip)}. ${day.title}. ${stops}.`,
-      });
-    }
-  }
-
-  if (/neighborhood|neighbourhood|area|which part|where (?:should|do) we/.test(haystack)) {
-    const slug = resolveSlug(trip, text);
-    if (slug) {
-      assertToolAllowed("route_supervisor", "search_travel_knowledge");
-      const knowledge = await searchTravelKnowledge.execute({
-        query: text,
-        destinationSlug: slug,
-        live,
-      });
-      const titles = knowledge.items.map((item) => item.title).slice(0, 2);
-      const detail = titles.length
-        ? titles.join("; ")
-        : trip.itinerary?.days[0]?.area ?? placeName(trip);
-      return withPlanningSteer({
-        trip,
-        text,
-        assistantText: `You asked about neighborhoods in ${placeName(trip)}. ${detail}.`,
-        evidence: knowledge.items.slice(0, 3),
       });
     }
   }
@@ -716,27 +735,29 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
 
   if (asked) {
     const slug = resolveSlug(trip, text);
-    if (slug) {
-      assertToolAllowed("route_supervisor", "search_travel_knowledge");
-      const knowledge = await searchTravelKnowledge.execute({
-        query: text,
-        destinationSlug: slug,
-        live,
-      });
-      const destination = getDestination(slug);
-      const titles = knowledge.items.map((item) => item.title).slice(0, 2);
-      const detail = titles.length ? titles.join("; ") : destination?.summary ?? placeName(trip);
+    const facts = catalogFactAnswer(trip, text, slug);
+    if (facts) {
+      let evidence: EvidenceRef[] | undefined;
+      if (slug) {
+        assertToolAllowed("route_supervisor", "search_travel_knowledge");
+        const knowledge = await searchTravelKnowledge.execute({
+          query: text,
+          destinationSlug: slug,
+          live,
+        });
+        evidence = knowledge.items.slice(0, 3);
+      }
       return withPlanningSteer({
         trip,
         text,
-        assistantText: `You asked about ${destination?.name ?? placeName(trip)}. ${detail}`,
-        evidence: knowledge.items.slice(0, 3),
+        assistantText: facts,
+        evidence,
       });
     }
     return withPlanningSteer({
       trip,
       text,
-      assistantText: `You asked about ${placeName(trip)}.`,
+      assistantText: unansweredAskReply(trip, text),
     });
   }
 
@@ -799,6 +820,19 @@ export function finalizeSupervisor(state: SupervisorInput, result: SupervisorRes
     });
   }
 
+  const outside = detectOutOfCatalogAsk(state.inputText);
+  if (outside) {
+    const draft = result.assistantText?.trim() ?? "";
+    return withPlanningSteer({
+      trip: result.trip,
+      text: state.inputText,
+      assistantText: mentionsOutOfCatalog(draft, outside)
+        ? draft
+        : outOfCatalogAssistantText(result.trip, state.inputText, outside),
+      evidence,
+    });
+  }
+
   if (
     looksLikeMoreOptionsAsk(state.inputText) &&
     hasDestinationCandidates(result.trip) &&
@@ -813,11 +847,24 @@ export function finalizeSupervisor(state: SupervisorInput, result: SupervisorRes
     });
   }
 
-  if (asked && !result.trip.itinerary) {
+  if (asked) {
+    const draft = result.assistantText?.trim() ?? "";
+    const assistantText =
+      draft && replyAddressesAsk(state.inputText, draft)
+        ? draft
+        : unansweredAskReply(result.trip, state.inputText);
+    if (result.trip.itinerary) {
+      return finishAnswer({
+        trip: result.trip,
+        text: state.inputText,
+        assistantText,
+        evidence,
+      });
+    }
     return withPlanningSteer({
       trip: result.trip,
       text: state.inputText,
-      assistantText: result.assistantText?.trim() || `You asked about ${placeName(result.trip)}.`,
+      assistantText,
       evidence,
     });
   }

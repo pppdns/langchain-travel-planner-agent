@@ -234,6 +234,8 @@ describe("supervisor routing", () => {
       "Volcanoes and dramatic terrain",
       "Forests, waterfalls, and valleys",
     ]);
+    expect(asked.values.assistantText).toMatch(/asia/i);
+    expect(asked.values.assistantText).toMatch(/demo catalog|hiring demo|fixed set/i);
     expect(asked.values.assistantText).toMatch(/ideal hike/i);
     expect(asked.values.assistantText).not.toMatch(/what kind of trip/i);
   });
@@ -445,6 +447,167 @@ describe("supervisor routing", () => {
     });
     expect(picked.tripState.destinationSlug).toBe("faro");
     expect(picked.tripState.itinerary?.days.length).toBeGreaterThan(0);
+  });
+
+  it("admits there are no USA destinations and keeps the cards", async () => {
+    const threadId = "family-beach-usa-ask";
+    const first = await runTripGraph({
+      threadId,
+      request: { kind: "starter", starterId: "family-beach-europe", idempotencyKey: "usa-ask-a" },
+      existing: applyStarterSeed("family-beach-europe"),
+    });
+    expect(first.interrupted).toBe(true);
+    const names = first.tripState.candidateDestinations.map((item) => item.name);
+
+    const asked = await runTripGraph({
+      threadId,
+      request: { kind: "message", text: "any destination in the USA?", idempotencyKey: "usa-ask-b" },
+      existing: tripStateSchema.parse(first.tripState),
+    });
+    expect(asked.assistantText).toMatch(/USA/);
+    expect(asked.assistantText).toMatch(/no destinations in the USA/i);
+    expect(asked.assistantText).toMatch(/demo catalog|hiring demo|fixed set/i);
+    expect(asked.assistantText).not.toMatch(/you asked about this trip/i);
+    for (const name of names) {
+      expect(asked.assistantText).toContain(name);
+    }
+    expect(asked.assistantText).toMatch(/pick a destination|pick one of/i);
+    expect(asked.tripState.pendingInterrupt?.interruptType).toBe("choose_destination");
+    expect(asked.tripState.lastTurnKind).toBe("answer");
+    expect(asked.tripState.candidateDestinations.map((item) => item.slug)).toEqual(
+      first.tripState.candidateDestinations.map((item) => item.slug),
+    );
+
+    const picked = await runTripGraph({
+      threadId,
+      request: {
+        kind: "resume",
+        interruptId: asked.tripState.pendingInterrupt?.interruptId ?? "choose-destination",
+        value: "faro",
+        idempotencyKey: "usa-ask-c",
+      },
+      existing: tripStateSchema.parse(asked.tripState),
+    });
+    expect(picked.tripState.destinationSlug).toBe("faro");
+    expect(picked.tripState.itinerary?.days.length).toBeGreaterThan(0);
+  });
+
+  it("answers a catalog fact during destination choice", async () => {
+    const threadId = "family-beach-walkable";
+    const first = await runTripGraph({
+      threadId,
+      request: { kind: "starter", starterId: "family-beach-europe", idempotencyKey: "walkable-a" },
+      existing: applyStarterSeed("family-beach-europe"),
+    });
+    const asked = await runTripGraph({
+      threadId,
+      request: { kind: "message", text: "is Faro walkable?", idempotencyKey: "walkable-b" },
+      existing: tripStateSchema.parse(first.tripState),
+    });
+    expect(asked.assistantText).toMatch(/walkable/i);
+    expect(asked.assistantText).toMatch(/Faro \/ Algarve/);
+    expect(asked.assistantText).not.toMatch(/you asked about this trip/i);
+    expect(asked.tripState.pendingInterrupt?.interruptType).toBe("choose_destination");
+    expect(asked.tripState.lastTurnKind).toBe("answer");
+  });
+
+  it("admits it when a travel question is outside the catalog facts", async () => {
+    const threadId = "family-beach-wifi";
+    const first = await runTripGraph({
+      threadId,
+      request: { kind: "starter", starterId: "family-beach-europe", idempotencyKey: "wifi-a" },
+      existing: applyStarterSeed("family-beach-europe"),
+    });
+    const asked = await runTripGraph({
+      threadId,
+      request: { kind: "message", text: "do they have wifi in Faro?", idempotencyKey: "wifi-b" },
+      existing: tripStateSchema.parse(first.tripState),
+    });
+    expect(asked.assistantText).toMatch(/wifi/i);
+    expect(asked.assistantText).toMatch(/don't have an answer/i);
+    expect(asked.assistantText).toMatch(/hiring demo/i);
+    expect(asked.assistantText).not.toMatch(/you asked about this trip/i);
+    expect(asked.tripState.pendingInterrupt?.interruptType).toBe("choose_destination");
+    expect(asked.tripState.lastTurnKind).toBe("answer");
+  });
+
+  it("rewrites an irrelevant answer into an honest gap", () => {
+    const trip = {
+      ...emptyTripState(),
+      destinationStatus: "candidates" as const,
+      pendingInterrupt: {
+        interruptId: "choose-destination",
+        interruptType: "choose_destination" as const,
+        title: "Choose a destination",
+        prompt: "Pick a destination to continue.",
+        options: [{ id: "faro", label: "Faro / Algarve" }],
+      },
+      candidateDestinations: [
+        { slug: "faro", name: "Faro / Algarve", country: "Portugal", summary: "", fit: "strong" as const, factors: [], evidence: [] },
+      ],
+    };
+    const steered = finalizeSupervisor(
+      {
+        messages: [],
+        trip,
+        inputText: "do they have wifi in Faro?",
+        inputKind: "message",
+        assistantText: "",
+      },
+      {
+        trip,
+        assistantText: "You asked about this trip. Pick a destination to continue.",
+        messages: [],
+        supervisorRoute: "answer",
+      },
+    );
+    expect(steered.assistantText).toMatch(/wifi/i);
+    expect(steered.assistantText).toMatch(/don't have an answer/i);
+    expect(steered.assistantText).not.toMatch(/you asked about this trip/i);
+  });
+
+  it("rewrites a generic trip answer into an out-of-catalog limit", () => {
+    const trip = {
+      ...emptyTripState(),
+      destinationStatus: "candidates" as const,
+      currentPlanningStage: "awaiting_destination" as const,
+      pendingInterrupt: {
+        interruptId: "choose-destination-faro-malaga-chania",
+        interruptType: "choose_destination" as const,
+        title: "Choose a destination",
+        prompt: "Pick a destination to continue.",
+        options: [
+          { id: "faro", label: "Faro / Algarve" },
+          { id: "malaga", label: "Málaga" },
+          { id: "chania", label: "Chania" },
+        ],
+      },
+      candidateDestinations: [
+        { slug: "faro", name: "Faro / Algarve", country: "Portugal", summary: "", fit: "strong" as const, factors: [], evidence: [] },
+        { slug: "malaga", name: "Málaga", country: "Spain", summary: "", fit: "strong" as const, factors: [], evidence: [] },
+        { slug: "chania", name: "Chania", country: "Greece", summary: "", fit: "strong" as const, factors: [], evidence: [] },
+      ],
+    };
+    const steered = finalizeSupervisor(
+      {
+        messages: [],
+        trip,
+        inputText: "any destination in the USA?",
+        inputKind: "message",
+        assistantText: "",
+      },
+      {
+        trip,
+        assistantText: "You asked about this trip. Pick a destination to continue.",
+        messages: [],
+        supervisorRoute: "answer",
+      },
+    );
+    expect(steered.supervisorRoute).toBe("answer");
+    expect(steered.assistantText).toMatch(/no destinations in the USA/i);
+    expect(steered.assistantText).toMatch(/Faro \/ Algarve/);
+    expect(steered.assistantText).not.toMatch(/you asked about this trip/i);
+    expect(steered.trip.pendingInterrupt?.interruptType).toBe("choose_destination");
   });
 
   it("rewrites a silent repeat of the same destinations into a catalog limit", () => {
