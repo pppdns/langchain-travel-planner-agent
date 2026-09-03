@@ -6,6 +6,7 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SUPABASE_SESSION_POOLER_DATABASE_URL: z.string().optional(),
   AI_GATEWAY_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
   ROUTE_STATE_RUNTIME: z.enum(["fake", "live", "replay"]).default("fake"),
   DEMO_DISABLED: z.enum(["true", "false"]).default("false"),
   UPLOADS_DISABLED: z.enum(["true", "false"]).default("false"),
@@ -31,6 +32,7 @@ export function getEnv(): AppEnv {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     SUPABASE_SESSION_POOLER_DATABASE_URL: process.env.SUPABASE_SESSION_POOLER_DATABASE_URL,
     AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     ROUTE_STATE_RUNTIME: process.env.ROUTE_STATE_RUNTIME,
     DEMO_DISABLED: process.env.DEMO_DISABLED,
     UPLOADS_DISABLED: process.env.UPLOADS_DISABLED,
@@ -52,7 +54,20 @@ export function isPreviewDeployment(): boolean {
   return process.env.VERCEL_ENV === "preview";
 }
 
+export function isForcedFakeRuntime(): boolean {
+  return process.env.PLAYWRIGHT === "1" || process.env.VITEST === "true" || process.env.NODE_ENV === "test";
+}
+
+export function hasLiveModelCredentials(env: AppEnv = getEnv()): boolean {
+  return Boolean(env.AI_GATEWAY_API_KEY || env.OPENAI_API_KEY);
+}
+
+export function isLiveModelsEnabled(): boolean {
+  return !isForcedFakeRuntime() && resolveRuntimeMode() === "live" && hasLiveModelCredentials();
+}
+
 export function resolveRuntimeMode(): "fake" | "live" | "replay" {
+  if (isForcedFakeRuntime()) return "fake";
   const env = getEnv();
   if (env.DEMO_DISABLED === "true" || env.REPLAY_ONLY === "true" || isPreviewDeployment()) {
     return env.ROUTE_STATE_RUNTIME === "live" && env.REPLAY_ONLY !== "true" && env.DEMO_DISABLED !== "true"

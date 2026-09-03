@@ -30,3 +30,7 @@ Interview map:
 | How do you keep the demo alive? | `src/ai/runtime/budget.ts` + `src/ai/replay` |
 | How do you authorize tools? | `src/ai/tools/catalog.ts` `NODE_TOOL_ALLOWLIST` |
 | How do you revise a finished plan? | `src/ai/graph/revisions.ts` on the same thread |
+| How do live models stay optional? | `src/lib/env.ts` `isLiveModelsEnabled` + graph `configurable.liveModels` |
+| How do you stream tokens without leaking prompts? | `src/ai/stream/bridge.ts` `createAssistantStream` over the same NDJSON contract |
+| How does retrieval stay public-safe? | `src/ai/retrieval/hybrid.ts` returns titles only; chunk bodies never stream |
+| How does weather fail closed? | `src/ai/tools/weather.ts` Open-Meteo with a 4s timeout and catalog fallback |

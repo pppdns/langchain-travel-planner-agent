@@ -9,6 +9,21 @@ Environment flags:
 
 If live models fail or the budget is exhausted, starters play recorded runs with an honest banner.
 
+To turn on live models, pgvector retrieval, AI SDK token streaming, and Open-Meteo weather:
+
+```sh
+# .env.local
+ROUTE_STATE_RUNTIME=live
+OPENAI_API_KEY=...
+# or AI_GATEWAY_API_KEY=...
+SUPABASE_SESSION_POOLER_DATABASE_URL=...
+
+pnpm generate:corpus
+pnpm seed:corpus
+```
+
+Vitest and Playwright stay on the fake graph even if the env file says live.
+
 Preview deployments should stay on `ROUTE_STATE_RUNTIME=fake` or `replay`.
 
 Rollback: disable the production deployment, set `DEMO_DISABLED=true`, and keep `/replay/family-beach-europe` available.

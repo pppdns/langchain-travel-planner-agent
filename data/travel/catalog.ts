@@ -23,6 +23,8 @@ export type DestinationRecord = {
   summary: string;
   traits: DestinationTraits;
   plate: { motif: PlateMotif };
+  latitude: number;
+  longitude: number;
 };
 
 export type KnowledgeDoc = {
@@ -76,6 +78,67 @@ const PLATE_MOTIF_BY_SLUG: Record<string, PlateMotif> = {
   vienna: "grid",
   krakow: "grid",
   madeira: "hills",
+  lyon: "grid",
+  marseille: "harbor",
+  bordeaux: "river",
+  milan: "grid",
+  naples: "harbor",
+  bologna: "grid",
+  berlin: "grid",
+  munich: "grid",
+  stockholm: "harbor",
+  helsinki: "harbor",
+  bilbao: "river",
+  "san-sebastian": "coast",
+  ljubljana: "river",
+  tallinn: "harbor",
+  bruges: "grid",
+  thessaloniki: "harbor",
+};
+
+const COORDINATES: Record<string, { latitude: number; longitude: number }> = {
+  faro: { latitude: 37.0194, longitude: -7.9322 },
+  valencia: { latitude: 39.4699, longitude: -0.3763 },
+  nice: { latitude: 43.7102, longitude: 7.262 },
+  barcelona: { latitude: 41.3874, longitude: 2.1686 },
+  lisbon: { latitude: 38.7223, longitude: -9.1393 },
+  porto: { latitude: 41.1579, longitude: -8.6291 },
+  seville: { latitude: 37.3891, longitude: -5.9845 },
+  malaga: { latitude: 36.7213, longitude: -4.4214 },
+  palma: { latitude: 39.5696, longitude: 2.6502 },
+  split: { latitude: 43.5081, longitude: 16.4402 },
+  dubrovnik: { latitude: 42.6507, longitude: 18.0944 },
+  athens: { latitude: 37.9838, longitude: 23.7275 },
+  chania: { latitude: 35.5138, longitude: 24.018 },
+  santorini: { latitude: 36.3932, longitude: 25.4615 },
+  rome: { latitude: 41.9028, longitude: 12.4964 },
+  florence: { latitude: 43.7696, longitude: 11.2558 },
+  venice: { latitude: 45.4408, longitude: 12.3155 },
+  amsterdam: { latitude: 52.3676, longitude: 4.9041 },
+  copenhagen: { latitude: 55.6761, longitude: 12.5683 },
+  edinburgh: { latitude: 55.9533, longitude: -3.1883 },
+  dublin: { latitude: 53.3498, longitude: -6.2603 },
+  prague: { latitude: 50.0755, longitude: 14.4378 },
+  budapest: { latitude: 47.4979, longitude: 19.0402 },
+  vienna: { latitude: 48.2082, longitude: 16.3738 },
+  krakow: { latitude: 50.0647, longitude: 19.945 },
+  madeira: { latitude: 32.6669, longitude: -16.9241 },
+  lyon: { latitude: 45.764, longitude: 4.8357 },
+  marseille: { latitude: 43.2965, longitude: 5.3698 },
+  bordeaux: { latitude: 44.8378, longitude: -0.5792 },
+  milan: { latitude: 45.4642, longitude: 9.19 },
+  naples: { latitude: 40.8518, longitude: 14.2681 },
+  bologna: { latitude: 44.4949, longitude: 11.3426 },
+  berlin: { latitude: 52.52, longitude: 13.405 },
+  munich: { latitude: 48.1351, longitude: 11.582 },
+  stockholm: { latitude: 59.3293, longitude: 18.0686 },
+  helsinki: { latitude: 60.1699, longitude: 24.9384 },
+  bilbao: { latitude: 43.263, longitude: -2.935 },
+  "san-sebastian": { latitude: 43.3183, longitude: -1.9812 },
+  ljubljana: { latitude: 46.0569, longitude: 14.5058 },
+  tallinn: { latitude: 59.437, longitude: 24.7536 },
+  bruges: { latitude: 51.2093, longitude: 3.2247 },
+  thessaloniki: { latitude: 40.6401, longitude: 22.9444 },
 };
 
 function motifFromTraits(traits: DestinationTraits): PlateMotif {
@@ -86,7 +149,7 @@ function motifFromTraits(traits: DestinationTraits): PlateMotif {
   return "hills";
 }
 
-const DESTINATION_SEEDS: Omit<DestinationRecord, "plate">[] = [
+const DESTINATION_SEEDS: Omit<DestinationRecord, "plate" | "latitude" | "longitude">[] = [
   {
     slug: "faro",
     name: "Faro / Algarve",
@@ -295,12 +358,148 @@ const DESTINATION_SEEDS: Omit<DestinationRecord, "plate">[] = [
     summary: "Mild cliffs and levada walks more than a classic sandy beach trip.",
     traits: traits({ nature: true, warm: true, food: true }),
   },
+  {
+    slug: "lyon",
+    name: "Lyon",
+    country: "France",
+    region: "Western Europe",
+    summary: "A food-first city at the confluence, better for dinners than beaches.",
+    traits: traits({ city: true, food: true, culture: true, walkable: true }),
+  },
+  {
+    slug: "marseille",
+    name: "Marseille",
+    country: "France",
+    region: "Southern Europe",
+    summary: "A working port city with calanques nearby and a strong neighborhood food scene.",
+    traits: traits({ city: true, food: true, beach: true, walkable: true }),
+  },
+  {
+    slug: "bordeaux",
+    name: "Bordeaux",
+    country: "France",
+    region: "Western Europe",
+    summary: "Riverfront stone streets and wine-country day trips that stay optional.",
+    traits: traits({ city: true, food: true, culture: true, walkable: true }),
+  },
+  {
+    slug: "milan",
+    name: "Milan",
+    country: "Italy",
+    region: "Southern Europe",
+    summary: "A design-and-food city break if you keep the daily radius inside the core.",
+    traits: traits({ city: true, food: true, culture: true, walkable: true, nightlife: true }),
+  },
+  {
+    slug: "naples",
+    name: "Naples",
+    country: "Italy",
+    region: "Southern Europe",
+    summary: "Intense street food and a compact historic core, with the coast as a chosen day.",
+    traits: traits({ city: true, food: true, culture: true, warm: true, budgetFriendly: true }),
+  },
+  {
+    slug: "bologna",
+    name: "Bologna",
+    country: "Italy",
+    region: "Southern Europe",
+    summary: "Arcades, markets, and a walkable food city that rewards an unhurried pace.",
+    traits: traits({ city: true, food: true, culture: true, walkable: true, budgetFriendly: true }),
+  },
+  {
+    slug: "berlin",
+    name: "Berlin",
+    country: "Germany",
+    region: "Central Europe",
+    summary: "Neighborhoods over monuments. Strong value if you pick one side of the city.",
+    traits: traits({ city: true, culture: true, nightlife: true, budgetFriendly: true, walkable: true }),
+  },
+  {
+    slug: "munich",
+    name: "Munich",
+    country: "Germany",
+    region: "Central Europe",
+    summary: "Parks, museums, and a calm city grid that works as a four-night break.",
+    traits: traits({ city: true, culture: true, walkable: true, family: true }),
+  },
+  {
+    slug: "stockholm",
+    name: "Stockholm",
+    country: "Sweden",
+    region: "Northern Europe",
+    summary: "Island neighborhoods and harbor walks more than a packed museum circuit.",
+    traits: traits({ city: true, nature: true, walkable: true, family: true }),
+  },
+  {
+    slug: "helsinki",
+    name: "Helsinki",
+    country: "Finland",
+    region: "Northern Europe",
+    summary: "A compact design city with sauna culture and an easy waterfront loop.",
+    traits: traits({ city: true, culture: true, walkable: true }),
+  },
+  {
+    slug: "bilbao",
+    name: "Bilbao",
+    country: "Spain",
+    region: "Northern Spain",
+    summary: "River walks, Basque food, and a city scale that stays manageable.",
+    traits: traits({ city: true, food: true, culture: true, walkable: true }),
+  },
+  {
+    slug: "san-sebastian",
+    name: "San Sebastián",
+    country: "Spain",
+    region: "Northern Spain",
+    summary: "Pintxos and a city beach. Better for food-led couples than young families.",
+    traits: traits({ city: true, food: true, beach: true, walkable: true }),
+  },
+  {
+    slug: "ljubljana",
+    name: "Ljubljana",
+    country: "Slovenia",
+    region: "Central Europe",
+    summary: "A small river city with optional lake or cave day trips.",
+    traits: traits({ city: true, nature: true, culture: true, budgetFriendly: true, walkable: true }),
+  },
+  {
+    slug: "tallinn",
+    name: "Tallinn",
+    country: "Estonia",
+    region: "Northern Europe",
+    summary: "A compact old town and a modern harbor district that still fits a tight budget.",
+    traits: traits({ city: true, culture: true, budgetFriendly: true, walkable: true }),
+  },
+  {
+    slug: "bruges",
+    name: "Bruges",
+    country: "Belgium",
+    region: "Western Europe",
+    summary: "A walkable canal town that works when you leave by late afternoon crowds.",
+    traits: traits({ city: true, culture: true, walkable: true }),
+  },
+  {
+    slug: "thessaloniki",
+    name: "Thessaloniki",
+    country: "Greece",
+    region: "Eastern Mediterranean",
+    summary: "A food-led waterfront city with a calmer pace than the islands.",
+    traits: traits({ city: true, food: true, culture: true, warm: true, budgetFriendly: true }),
+  },
 ];
 
-export const DESTINATIONS: DestinationRecord[] = DESTINATION_SEEDS.map((seed) => ({
-  ...seed,
-  plate: { motif: PLATE_MOTIF_BY_SLUG[seed.slug] ?? motifFromTraits(seed.traits) },
-}));
+export const DESTINATIONS: DestinationRecord[] = DESTINATION_SEEDS.map((seed) => {
+  const coordinates = COORDINATES[seed.slug];
+  if (!coordinates) {
+    throw new Error(`Missing coordinates for ${seed.slug}`);
+  }
+  return {
+    ...seed,
+    plate: { motif: PLATE_MOTIF_BY_SLUG[seed.slug] ?? motifFromTraits(seed.traits) },
+    latitude: coordinates.latitude,
+    longitude: coordinates.longitude,
+  };
+});
 
 export function plateMotifFor(slug: string, fallbackTraits?: DestinationTraits): PlateMotif {
   if (PLATE_MOTIF_BY_SLUG[slug]) return PLATE_MOTIF_BY_SLUG[slug];

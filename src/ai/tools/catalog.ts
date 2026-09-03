@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getDestination } from "@/data/travel/catalog";
-import { searchKnowledge } from "@/src/ai/graph/rank";
+import { retrieveEvidence } from "@/src/ai/retrieval/hybrid";
+import { fetchWeatherSummary } from "@/src/ai/tools/weather";
 import { listMemories, writeMemory } from "@/src/ai/memory/preferences";
 
 export const TOOL_NAMES = [
@@ -49,34 +50,24 @@ export const lookupDestinationProfile = {
 
 export const searchTravelKnowledge = {
   name: "search_travel_knowledge" as const,
-  description: "Search the synthetic travel corpus with optional destination filter.",
+  description: "Search the travel corpus with optional destination filter. Live mode uses pgvector.",
   schema: z.object({ query: z.string(), destinationSlug: z.string().optional() }),
-  execute(input: { query: string; destinationSlug?: string }) {
-    return {
-      ok: true as const,
-      items: searchKnowledge(input.query, input.destinationSlug).map((doc) => ({
-        id: doc.id,
-        title: doc.title,
-        category: doc.category,
-        sourceType: doc.sourceType,
-      })),
-    };
+  async execute(input: { query: string; destinationSlug?: string; live?: boolean }) {
+    const items = await retrieveEvidence({
+      text: input.query,
+      destinationSlug: input.destinationSlug,
+      live: input.live,
+    });
+    return { ok: true as const, items };
   },
 };
 
 export const getWeather = {
   name: "get_weather" as const,
-  description: "Return a cached seasonal weather sketch. Never blocks the trip if live weather is down.",
+  description: "Return live Open-Meteo weather when enabled, otherwise a seasonal fallback sketch.",
   schema: z.object({ slug: z.string() }),
-  execute(input: { slug: string }) {
-    const destination = getDestination(input.slug);
-    return {
-      ok: true as const,
-      summary: destination?.traits.warm
-        ? "Warm afternoons, plan shade after 11."
-        : "Changeable weather, keep an indoor backup.",
-      source: "fallback",
-    };
+  async execute(input: { slug: string; live?: boolean }) {
+    return fetchWeatherSummary(input.slug, { live: input.live });
   },
 };
 

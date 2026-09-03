@@ -20,12 +20,14 @@ import {
   type PublicEvent,
 } from "@/src/ai/stream/public-events";
 import type { RunTripRequest, StarterId } from "@/src/ai/contracts/http";
+import { buildLivePresentation, type LivePresentation } from "@/src/ai/models/live";
 
 export type RunResult = {
   events: PublicEvent[];
   tripState: PublicTripState;
   assistantText: string;
   interrupted: boolean;
+  livePresentation: LivePresentation | null;
 };
 
 const NODE_ORDER: GraphNodeId[] = [
@@ -83,9 +85,10 @@ export async function runTripGraph(input: {
   threadId: string;
   request: RunTripRequest;
   existing?: TripState;
+  liveModels?: boolean;
 }): Promise<RunResult> {
   const config = {
-    configurable: { thread_id: input.threadId },
+    configurable: { thread_id: input.threadId, liveModels: Boolean(input.liveModels) },
     recursionLimit: 16,
   };
 
@@ -152,7 +155,11 @@ export async function runTripGraph(input: {
   const usage = usageFor(events);
   if (usage) events.push(usage);
 
-  return { events, tripState, assistantText, interrupted };
+  const livePresentation = input.liveModels
+    ? buildLivePresentation({ trip: tripState, assistantText, interrupted })
+    : null;
+
+  return { events, tripState, assistantText, interrupted, livePresentation };
 }
 
 function usageFor(events: PublicEvent[]) {

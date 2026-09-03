@@ -4,13 +4,13 @@ A public, no-signup travel planner whose **Orchestration Atlas** is the live Lan
 
 Open the app, click **Warm family beach in Europe**, choose a destination, and watch the same interrupted thread resume into an itinerary. For a second interrupt, start **City break, food and culture, under 1500 EUR**, pick a place, then choose whether to protect the budget or the packed pace. If live AI is unavailable, the same journey plays as a labeled recorded run.
 
-This is a hiring showcase, not authoritative travel advice. The corpus is primarily synthetic.
+This is a hiring showcase, not authoritative travel advice. The default runtime is deterministic. Set `ROUTE_STATE_RUNTIME=live` with `OPENAI_API_KEY` or `AI_GATEWAY_API_KEY` to call models, stream tokens, query pgvector, and fetch Open-Meteo weather. The corpus stays planning notes, not a guidebook.
 
 ## What it demonstrates
 
 - LangGraph supervisor + subgraphs + two human interrupt/resume points
 - Typed public event stream for a graph-first UI
-- Hybrid RAG over a checked-in travel corpus, with evidence titles in the thread
+- Hybrid RAG over a checked-in travel corpus, with pgvector search when `ROUTE_STATE_RUNTIME=live`
 - Node-scoped tool authorization and session preference memory
 - Itinerary revision on the same checkpointed thread
 - Owner-bound anonymous Supabase tenancy
@@ -44,6 +44,8 @@ pnpm test
 pnpm typecheck
 pnpm lint
 pnpm test:e2e
+pnpm generate:corpus
+pnpm seed:corpus
 ```
 
 See `docs/architecture.md`, `docs/security.md`, and `docs/evaluation.md`.

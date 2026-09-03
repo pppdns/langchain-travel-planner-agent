@@ -22,6 +22,13 @@ import { applyStarterSeed } from "@/src/ai/contracts/starters";
 import type { StarterId } from "@/src/ai/contracts/http";
 import { deleteMemory } from "@/src/ai/memory/preferences";
 import {
+  applyExtractedFacts,
+  extractTripFacts,
+  matchCatalogDestination,
+  writeLiveAssistantCopy,
+} from "@/src/ai/models/live";
+import { liveModelsFromConfig } from "@/src/ai/runtime/live-flag";
+import {
   assertToolAllowed,
   convertCurrency,
   lookupDestinationProfile,
@@ -145,11 +152,12 @@ async function gatherPreferences(state: GraphState, config?: LangGraphRunnableCo
     }
 
     const text = state.inputText.toLowerCase();
-    if (text.includes("barcelona")) {
+    const matched = matchCatalogDestination(state.inputText);
+    if (matched && trip.destinationStatus === "unknown") {
       trip = mergeTripState(trip, {
         destinationStatus: "known",
-        destinationSlug: "barcelona",
-        destinationName: "Barcelona",
+        destinationSlug: matched.slug,
+        destinationName: matched.name,
       });
     }
     if (text.includes("beach")) trip = mergeTripState(trip, { tripType: "beach", preferences: [...trip.preferences, "beach"] });
@@ -159,6 +167,10 @@ async function gatherPreferences(state: GraphState, config?: LangGraphRunnableCo
       trip = mergeTripState(trip, {
         preferences: [...trip.preferences, "atmosphere from photo"],
       });
+    }
+    if (liveModelsFromConfig(config)) {
+      const extracted = await extractTripFacts(state.inputText);
+      if (extracted) trip = applyExtractedFacts(trip, extracted);
     }
   }
 
@@ -206,16 +218,19 @@ async function routeSupervisor(state: GraphState) {
   };
 }
 
-async function discoverDestinations(state: GraphState) {
+async function discoverDestinations(state: GraphState, config?: LangGraphRunnableConfig) {
+  const live = liveModelsFromConfig(config);
   const query = [state.trip.tripType, ...state.trip.preferences].filter(Boolean).join(" ") || "city break";
   assertToolAllowed("discover_destinations", "search_travel_knowledge");
-  const knowledge = searchTravelKnowledge.execute({ query });
+  const knowledge = await searchTravelKnowledge.execute({ query, live });
   const candidates = rankDestinations(state.trip, 3);
+  const weatherNotes: string[] = [];
   for (const candidate of candidates) {
     assertToolAllowed("discover_destinations", "lookup_destination_profile");
     lookupDestinationProfile.execute({ slug: candidate.slug });
     assertToolAllowed("discover_destinations", "get_weather");
-    getWeather.execute({ slug: candidate.slug });
+    const weather = await getWeather.execute({ slug: candidate.slug, live });
+    weatherNotes.push(`${candidate.name}: ${weather.summary}`);
   }
 
   const interruptPayload: PendingInterrupt = {
@@ -231,6 +246,19 @@ async function discoverDestinations(state: GraphState) {
     })),
   };
 
+  const fallback = "I have three destination options with evidence. Choose one to continue on this same thread.";
+  const assistantText = live
+    ? await writeLiveAssistantCopy({
+        kind: "discover",
+        fallback,
+        facts: JSON.stringify({
+          candidates: candidates.map((item) => ({ name: item.name, summary: item.summary, factors: item.factors })),
+          weather: weatherNotes,
+          evidenceTitles: knowledge.items.map((item) => item.title),
+        }),
+      })
+    : fallback;
+
   return {
     trip: mergeTripState(state.trip, {
       destinationStatus: "candidates",
@@ -239,7 +267,7 @@ async function discoverDestinations(state: GraphState) {
       pendingInterrupt: interruptPayload,
       latestEvidence: [...knowledge.items, ...candidates.flatMap((item) => item.evidence)].slice(0, 6),
     }),
-    assistantText: "I have three destination options with evidence. Choose one to continue on this same thread.",
+    assistantText,
   };
 }
 
@@ -269,29 +297,53 @@ async function awaitDestinationChoice(state: GraphState) {
   };
 }
 
-async function researchLocal(state: GraphState) {
+async function researchLocal(state: GraphState, config?: LangGraphRunnableConfig) {
   const slug = state.trip.destinationSlug;
   if (!slug) {
     return {};
   }
+  const live = liveModelsFromConfig(config);
   assertToolAllowed("research_local", "search_travel_knowledge");
-  searchTravelKnowledge.execute({ query: "neighborhoods pace food", destinationSlug: slug });
+  const knowledge = await searchTravelKnowledge.execute({
+    query: "neighborhoods pace food",
+    destinationSlug: slug,
+    live,
+  });
   assertToolAllowed("research_local", "lookup_destination_profile");
   lookupDestinationProfile.execute({ slug });
-  const evidence = evidenceFor(slug, ["neighborhoods", "pace", "food", "family"]);
+  assertToolAllowed("research_local", "get_weather");
+  const weather = await getWeather.execute({ slug, live });
+  const catalogEvidence = evidenceFor(slug, ["neighborhoods", "pace", "food", "family"]);
+  const latestEvidence = (knowledge.items.length ? knowledge.items : catalogEvidence.map((doc) => ({
+    id: doc.id,
+    title: doc.title,
+    sourceType: doc.sourceType,
+    destinationSlug: doc.destinationSlug,
+    category: doc.category,
+  }))).slice(0, 6);
+  const fallback = `I gathered local notes for ${state.trip.destinationName ?? slug}. Next I will draft the days.`;
+  const assistantText = live
+    ? await writeLiveAssistantCopy({
+        kind: "research",
+        fallback,
+        facts: JSON.stringify({
+          destination: state.trip.destinationName ?? slug,
+          weather: weather.summary,
+          evidenceTitles: latestEvidence.map((item) => item.title),
+        }),
+      })
+    : fallback;
   return {
     trip: mergeTripState(state.trip, {
       currentPlanningStage: "planning",
-      publicSummary: evidence[0]?.body,
-      latestEvidence: evidence.map((doc) => ({
-        id: doc.id,
-        title: doc.title,
-        sourceType: doc.sourceType,
-        destinationSlug: doc.destinationSlug,
-        category: doc.category,
-      })),
+      publicSummary: `Local notes for ${state.trip.destinationName ?? slug}: ${latestEvidence
+        .map((item) => item.category)
+        .filter(Boolean)
+        .slice(0, 4)
+        .join(", ")}.`,
+      latestEvidence,
     }),
-    assistantText: `I gathered local notes for ${state.trip.destinationName ?? slug}. Next I will draft the days.`,
+    assistantText,
   };
 }
 

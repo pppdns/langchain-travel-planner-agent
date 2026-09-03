@@ -12,11 +12,14 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "seed:corpus": "tsx scripts/seed-corpus.ts",
+    "generate:corpus": "tsx scripts/generate-corpus.ts",
+    "smoke:live": "tsx scripts/smoke-live.ts && tsx scripts/smoke-retrieve.ts",
     "test:ui": "vitest --ui",
     "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit --skipLibCheck --project tsconfig.json"
   },
   "dependencies": {
     "@ai-sdk/langchain": "^3.0.89",
+    "@ai-sdk/openai": "^4.0.55",
     "@ai-sdk/react": "^4.0.92",
     "@langchain/core": "^1.2.9",
     "@langchain/langgraph": "^1.4.13",

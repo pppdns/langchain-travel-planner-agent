@@ -94,9 +94,10 @@ export default function CaseStudyPage() {
         <h2 className="mt-14 font-display text-2xl font-semibold tracking-tight">What is fake, and why</h2>
         <p className="mt-4 text-[15px] leading-7 text-muted">
           Default runtime is deterministic. The graph, interrupts, tool allowlist, and public events are real.
-          Model calls are not required for the recruiter path. The travel corpus is primarily synthetic so
-          retrieval can be tested without pretending to be an authoritative guidebook. Optional scenery uploads
-          store atmosphere only. Identity and booking documents are rejected.
+          Model calls are not required for the recruiter path. Set the runtime to live to call models, stream
+          tokens with the AI SDK, query pgvector, and fetch Open-Meteo weather. The travel corpus is generated
+          planning notes, not an authoritative guidebook. Optional scenery uploads store atmosphere only.
+          Identity and booking documents are rejected.
         </p>
         <p className="mt-4 text-[15px] leading-7 text-muted">
           CI covers scope, injection, destination fit, interrupt/resume, unauthorized tools, image validation,

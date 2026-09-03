@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { runTripRequestSchema } from "@/src/ai/contracts/http";
 import { replayEventsFor, runTripGraph } from "@/src/ai/runtime/public-run";
 import { budgetExhausted, reserveSpend, settleSpend } from "@/src/ai/runtime/budget";
-import { createEventStream } from "@/src/ai/stream/bridge";
+import { createAssistantStream, createEventStream } from "@/src/ai/stream/bridge";
 import { emptyTripState, tripStateSchema } from "@/src/ai/graph/state";
 import { assertHumanRequest } from "@/src/lib/botid";
-import { getEnv } from "@/src/lib/env";
+import { getEnv, isLiveModelsEnabled } from "@/src/lib/env";
 import {
   acquireLease,
   getSessionUserId,
@@ -90,10 +90,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
               : parsed.data.starterId;
     trip.messages.push({ role: "user", content: userText });
 
+    const playwright = request.headers.get("x-playwright") === "1" || process.env.PLAYWRIGHT === "1";
+    const liveModels = !playwright && isLiveModelsEnabled();
     const result = await runTripGraph({
       threadId: trip.id,
       request: parsed.data,
       existing: tripStateSchema.parse(trip.tripState ?? emptyTripState()),
+      liveModels,
     });
 
     trip.tripState = result.tripState;
@@ -105,12 +108,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       trip.status = "completed";
     }
     await saveStoredTrip(trip);
-    settleSpend(trip.id, 4);
+    settleSpend(trip.id, liveModels ? 8 : 4);
 
     return new Response(
-      createEventStream({
+      await createAssistantStream({
         text: result.assistantText,
         events: result.events,
+        live: result.livePresentation,
+        onText: async (text) => {
+          const last = trip.messages.at(-1);
+          if (last?.role === "assistant") last.content = text;
+          await saveStoredTrip(trip);
+        },
       }),
       { headers: { "Content-Type": "application/x-ndjson; charset=utf-8" } },
     );
