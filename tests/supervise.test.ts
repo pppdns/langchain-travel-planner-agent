@@ -235,7 +235,8 @@ describe("supervisor routing", () => {
       "Forests, waterfalls, and valleys",
     ]);
     expect(asked.values.assistantText).toMatch(/asia/i);
-    expect(asked.values.assistantText).toMatch(/demo catalog|hiring demo|fixed set/i);
+    expect(asked.values.assistantText).toMatch(/demo catalog|this app is a demo|fixed set/i);
+    expect(asked.values.assistantText).not.toMatch(/hiring|route state/i);
     expect(asked.values.assistantText).toMatch(/ideal hike/i);
     expect(asked.values.assistantText).not.toMatch(/what kind of trip/i);
   });
@@ -466,7 +467,8 @@ describe("supervisor routing", () => {
     });
     expect(asked.assistantText).toMatch(/USA/);
     expect(asked.assistantText).toMatch(/no destinations in the USA/i);
-    expect(asked.assistantText).toMatch(/demo catalog|hiring demo|fixed set/i);
+    expect(asked.assistantText).toMatch(/demo catalog|this app is a demo|fixed set/i);
+    expect(asked.assistantText).not.toMatch(/hiring|route state/i);
     expect(asked.assistantText).not.toMatch(/you asked about this trip/i);
     for (const name of names) {
       expect(asked.assistantText).toContain(name);
@@ -525,7 +527,8 @@ describe("supervisor routing", () => {
     });
     expect(asked.assistantText).toMatch(/wifi/i);
     expect(asked.assistantText).toMatch(/don't have an answer/i);
-    expect(asked.assistantText).toMatch(/hiring demo/i);
+    expect(asked.assistantText).toMatch(/this app is a demo/i);
+    expect(asked.assistantText).not.toMatch(/hiring|route state/i);
     expect(asked.assistantText).not.toMatch(/you asked about this trip/i);
     expect(asked.tripState.pendingInterrupt?.interruptType).toBe("choose_destination");
     expect(asked.tripState.lastTurnKind).toBe("answer");
@@ -666,7 +669,8 @@ describe("supervisor routing", () => {
       existing: tripStateSchema.parse(first.tripState),
     });
     expect(asked.assistantText).toMatch(/can't/i);
-    expect(asked.assistantText).toMatch(/hiring demo/i);
+    expect(asked.assistantText).toMatch(/this app is a demo/i);
+    expect(asked.assistantText).not.toMatch(/hiring|route state/i);
     expect(asked.assistantText).toMatch(/pick a destination/i);
     expect(asked.tripState.pendingInterrupt?.interruptType).toBe("choose_destination");
     expect(asked.tripState.lastTurnKind).toBe("answer");
@@ -679,7 +683,8 @@ describe("supervisor routing", () => {
       existing: emptyTripState(),
     });
     expect(asked.assistantText).toMatch(/can't/i);
-    expect(asked.assistantText).toMatch(/hiring demo/i);
+    expect(asked.assistantText).toMatch(/this app is a demo/i);
+    expect(asked.assistantText).not.toMatch(/hiring|route state/i);
     expect(asked.assistantText).toMatch(/fixed catalog/i);
     expect(asked.tripState.pendingInterrupt).toBeNull();
     expect(asked.tripState.lastTurnKind).toBe("answer");
@@ -713,7 +718,7 @@ describe("supervisor routing", () => {
       existing: tripStateSchema.parse(planned.tripState),
     });
     expect(shown.assistantText).toMatch(/plan for Faro/i);
-    expect(shown.assistantText).not.toMatch(/hiring demo/i);
+    expect(shown.assistantText).not.toMatch(/hiring|route state/i);
     expect(shown.tripState.lastTurnKind).toBe("plan");
   });
 });

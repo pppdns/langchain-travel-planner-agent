@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Engineering case study · Route State",
+  title: "Engineering case study · Travel planner",
 };
 
 const ARGUMENTS = [
@@ -51,7 +51,7 @@ export default function CaseStudyPage() {
     <div className="min-h-dvh bg-background text-text">
       <header className="flex h-16 items-center justify-between border-b border-border px-5">
         <Link href="/" className="font-display text-sm font-semibold tracking-[0.14em] text-text">
-          ROUTE STATE
+          TRAVEL PLANNER
         </Link>
         <Link
           href="/"
@@ -64,7 +64,7 @@ export default function CaseStudyPage() {
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-subtle">Case study</p>
         <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight">Why the atlas is the graph</h1>
         <p className="mt-4 text-[15px] leading-7 text-muted">
-          Route State is a hiring demo. The product is a trip planner. The argument is that LangGraph should
+          This app is a demo. The product is a trip planner. The argument is that LangGraph should
           own durable orchestration, while the UI stream stays on an allowlisted public protocol.
         </p>
 
@@ -94,7 +94,7 @@ export default function CaseStudyPage() {
         <h2 className="mt-14 font-display text-2xl font-semibold tracking-tight">What is fake, and why</h2>
         <p className="mt-4 text-[15px] leading-7 text-muted">
           Default runtime is deterministic. The graph, interrupts, tool allowlist, and public events are real.
-          Model calls are not required for the recruiter path. Set the runtime to live to call models, stream
+          Model calls are not required for the public demo path. Set the runtime to live to call models, stream
           tokens with the AI SDK, query pgvector, and fetch Open-Meteo weather. The travel corpus is generated
           planning notes, not an authoritative guidebook. Optional scenery uploads store atmosphere only.
           Identity and booking documents are rejected.

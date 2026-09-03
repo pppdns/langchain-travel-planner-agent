@@ -61,7 +61,8 @@ describe("grounded answers", () => {
     const reply = unansweredAskReply(candidates, "do they have wifi in Faro?");
     expect(reply).toMatch(/wifi/i);
     expect(reply).toMatch(/don't have an answer/i);
-    expect(reply).toMatch(/hiring demo/i);
+    expect(reply).toMatch(/this app is a demo/i);
+    expect(reply).not.toMatch(/hiring|route state/i);
     expect(reply).toMatch(/Faro \/ Algarve/);
   });
 });

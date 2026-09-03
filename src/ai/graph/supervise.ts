@@ -88,13 +88,14 @@ const STEER_TAILS = [
 ];
 
 const SUPERVISOR_SYSTEM = [
-  "You are Route State's travel supervisor. The scope guard already ran. Stay on travel.",
+  "You are the travel supervisor for this demo app. The scope guard already ran. Stay on travel.",
   "Answer the latest user message in freeform travel chat. Chips are optional shortcuts, not the only path.",
   "The first sentence must name their key ask and the place when a place is known, for example: You asked about the weather in Faro.",
   "Answer the question they asked. If the catalog, weather tool, or trip state cannot answer it, say you do not have that in this demo and name the limit. Never ignore the question or reply as if they only asked about the current trip.",
   "Resolve words like there or it from the current trip destination.",
   "Use tool results only. Do not invent weather, prices, hotel names, or bookings.",
-  "You are a hiring demo with a fixed European city catalog. You can rank catalog places, check weather, draft days, and revise a plan. You cannot book hotels, reserve tables, buy tickets, take payments, or quote live hotel or flight prices.",
+  "This app is a demo with a fixed European city catalog. You can rank catalog places, check weather, draft days, and revise a plan. You cannot book hotels, reserve tables, buy tickets, take payments, or quote live hotel or flight prices.",
+  "Never say hiring, recruiter, or a product name. Call this a demo app.",
   "If they ask for a country, region, or city that is not in the catalog, say there are no such places in this demo catalog, name the fixed European set, and keep the current choices. Do not invent destinations outside the catalog.",
   "If they ask for something you cannot do, say so in the first sentence, name the demo and catalog limit, then offer one next step you can do.",
   "If they asked to see the plan and an itinerary exists, do not lecture. Hand off to present. If there is no itinerary yet, say so and offer the next planning step.",
@@ -150,7 +151,7 @@ export function catalogBoundReply(trip: TripState) {
   const verb = names.length === 1 ? "is the strongest match" : "are the strongest matches";
   return [
     "You asked if there are other destinations.",
-    `Route State plans from a fixed demo catalog of ${DESTINATIONS.length} European cities, not the open web.`,
+    `This app plans from a fixed demo catalog of ${DESTINATIONS.length} European cities, not the open web.`,
     `${listed} ${verb} in that set for this trip.`,
     "I will not invent places outside the catalog.",
   ].join(" ");
@@ -541,7 +542,7 @@ async function runLiveSupervisor(
       tier: routeModelTier("supervise"),
       schema: supervisorRouteSchema,
       system:
-        "Choose the next Route State graph move. If the user asked a question, a booking they cannot do, or what this demo can do, choose answer. Do not jump to discover, research, or plan just because a destination is known. If they asked to see the plan and an itinerary exists, choose present. If they ask for other destinations and candidates are already listed, choose answer and admit the catalog is fixed. If they ask for a place outside the catalog, or anything the draft cannot actually answer, choose answer and say so. Never pick a reply that ignores the question. answer ends the turn. discover/research/plan/present hand off to specialist nodes. await_destination only if a destination choice is already pending and they are picking a place, not asking a question. If the draft lists 2 to 6 concrete choices, copy them into options and set question to the sentence that asks which to pick. Use only the supplied facts.",
+        "Choose the next graph move. If the user asked a question, a booking they cannot do, or what this demo can do, choose answer. Do not jump to discover, research, or plan just because a destination is known. If they asked to see the plan and an itinerary exists, choose present. If they ask for other destinations and candidates are already listed, choose answer and admit the catalog is fixed. If they ask for a place outside the catalog, or anything the draft cannot actually answer, choose answer and say so. Never pick a reply that ignores the question. answer ends the turn. discover/research/plan/present hand off to specialist nodes. await_destination only if a destination choice is already pending and they are picking a place, not asking a question. If the draft lists 2 to 6 concrete choices, copy them into options and set question to the sentence that asks which to pick. Use only the supplied facts.",
       prompt: [
         `User message: ${state.inputText}`,
         `Trip: ${tripBrief(state.trip)}`,

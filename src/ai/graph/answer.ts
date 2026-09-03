@@ -176,7 +176,7 @@ export function unansweredAskReply(trip: TripState, text: string) {
   return [
     `You asked "${quoteUserAsk(text)}".`,
     "I don't have an answer for that in this demo.",
-    `Route State is a hiring demo with a fixed catalog of ${DESTINATIONS.length} European cities.`,
+    `This app is a demo with a fixed catalog of ${DESTINATIONS.length} European cities.`,
     "I can rank those places, check weather, and draft days. I cannot invent facts, bookings, or places outside that set.",
     next,
   ].join(" ");

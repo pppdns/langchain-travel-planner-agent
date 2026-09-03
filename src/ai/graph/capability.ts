@@ -33,7 +33,7 @@ export function looksLikePresentAsk(text: string) {
 }
 
 export function mentionsCapabilityLimit(text: string) {
-  return /hiring demo|cannot book|can't book|do not reserve|don't reserve|cannot (?:buy|take payments)|no bookings|fixed (?:demo )?catalog/i.test(
+  return /this app is a demo|cannot book|can't book|do not reserve|don't reserve|cannot (?:buy|take payments)|no bookings|fixed (?:demo )?catalog/i.test(
     text,
   );
 }
@@ -68,7 +68,7 @@ export function nextCapableHint(trip: TripState) {
 export function capabilityLimitReply(trip: TripState, limit: CapabilityLimit) {
   return [
     `You asked me to ${actionPhrase(limit)}. I can't.`,
-    `Route State is a hiring demo with a fixed catalog of ${DESTINATIONS.length} European cities.`,
+    `This app is a demo with a fixed catalog of ${DESTINATIONS.length} European cities.`,
     "I do not reserve rooms, buy tickets, or take payments.",
     nextCapableHint(trip),
   ].join(" ");
@@ -76,7 +76,7 @@ export function capabilityLimitReply(trip: TripState, limit: CapabilityLimit) {
 
 export function selfAwareReply(trip: TripState) {
   return [
-    `I am Route State, a hiring demo that plans trips from a fixed catalog of ${DESTINATIONS.length} European cities.`,
+    `This app is a demo that plans trips from a fixed catalog of ${DESTINATIONS.length} European cities.`,
     "I can rank places, check weather, draft days, and revise a plan on this thread.",
     "I cannot book hotels, buy tickets, or take payments.",
     nextCapableHint(trip),
@@ -280,7 +280,7 @@ export function outOfCatalogReply(trip: TripState, askedPlace: string) {
   return [
     `You asked for a destination in ${askedPlace}.`,
     `There are no destinations in ${askedPlace} in this demo catalog.`,
-    `Route State is a hiring demo with a fixed set of ${DESTINATIONS.length} European cities.`,
+    `This app is a demo with a fixed set of ${DESTINATIONS.length} European cities.`,
     next,
   ].join(" ");
 }

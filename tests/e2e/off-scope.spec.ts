@@ -23,7 +23,8 @@ test("booking asks name the demo limit and keep a next step", async ({ page }) =
   await expect(page.locator("[data-ready='true']")).toBeVisible({ timeout: 15_000 });
   await page.getByLabel("Message").fill("book me a hotel");
   await page.getByRole("button", { name: /send/i }).click();
-  await expect(page.getByText(/hiring demo/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/this app is a demo/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/hiring|route state/i)).toHaveCount(0);
   await expect(page.getByText(/fixed catalog/i)).toBeVisible();
   await expect(page.getByText(/only plan trips/i)).toHaveCount(0);
   await expect(page.getByRole("radio", { name: /beach/i })).toBeVisible();

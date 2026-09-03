@@ -87,7 +87,7 @@ export async function extractTripFacts(text: string): Promise<TripExtract | null
     tier: routeModelTier("extract"),
     schema: tripExtractSchema,
     system:
-      "Extract travel-planning facts for Route State. Only use destinationSlug values from the catalog. Leave fields omitted when the user did not say them. Never invent prices.",
+      "Extract travel-planning facts for this demo app. Only use destinationSlug values from the catalog. Leave fields omitted when the user did not say them. Never invent prices.",
     prompt: `Catalog slugs: ${catalog}\n\nUser message:\n${text}`,
     timeoutMs: 12_000,
   });
@@ -102,7 +102,7 @@ export async function writeLiveAssistantCopy(params: {
   const text = await generatePlainText({
     tier: params.kind === "research" ? routeModelTier("research") : routeModelTier("extract"),
     system:
-      "You write short Route State replies. No em-dashes. No match percentages. No bookings or live prices. Use only the supplied facts. Two to four sentences.",
+      "You write short demo-app replies. No em-dashes. No match percentages. No bookings or live prices. Never say hiring or a product name. Use only the supplied facts. Two to four sentences.",
     prompt: `Facts:\n${params.facts}\n\nFallback tone to keep:\n${params.fallback}`,
     timeoutMs: 12_000,
   });
@@ -160,7 +160,7 @@ export function buildLivePresentation(params: {
   return {
     modelTier: routeModelTier("present"),
     system:
-      "You are Route State's travel planner. Write a concise operations brief from the supplied facts only. No em-dashes, no match percentages, no invented prices or bookings. Keep Day labels when an itinerary is present.",
+      "You are the travel planner for this demo app. Write a concise operations brief from the supplied facts only. No em-dashes, no match percentages, no invented prices or bookings. Never say hiring or a product name. Keep Day labels when an itinerary is present.",
     prompt: JSON.stringify(facts),
   };
 }

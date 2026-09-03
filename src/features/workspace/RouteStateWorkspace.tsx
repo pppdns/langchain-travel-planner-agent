@@ -196,8 +196,8 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
       <header className="shrink-0 border-b border-border px-5 py-3 lg:h-16 lg:py-0">
         <div className="flex items-center justify-between gap-4 lg:h-full">
           <div className="flex min-w-0 items-baseline gap-3">
-            <p className="font-display text-sm font-semibold tracking-[0.14em] text-text">ROUTE STATE</p>
-            <p className="hidden font-mono text-[11px] text-subtle sm:block">Public travel planner</p>
+            <p className="font-display text-sm font-semibold tracking-[0.14em] text-text">TRAVEL PLANNER</p>
+            <p className="hidden font-mono text-[11px] text-subtle sm:block">Public demo</p>
           </div>
           <div className="hidden min-w-0 flex-1 lg:block">
             <GraphPulse

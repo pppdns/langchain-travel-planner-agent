@@ -70,7 +70,8 @@ test("a USA destination ask names the catalog limit", async ({ page }) => {
   await page.locator("#composer").fill("any destination in the USA?");
   await page.getByRole("button", { name: /^send$/i }).click();
   await expect(page.getByText(/no destinations in the USA/i)).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(/demo catalog|hiring demo|fixed set/i)).toBeVisible();
+  await expect(page.getByText(/this app is a demo|demo catalog|fixed set/i)).toBeVisible();
+  await expect(page.getByText(/hiring|route state/i)).toHaveCount(0);
   await expect(page.getByRole("heading", { name: /choose a destination/i })).toBeVisible();
   await page.getByRole("option", { name: /faro/i }).click();
   await expect(page.getByText(/day 1/i)).toBeVisible({ timeout: 20_000 });

@@ -14,11 +14,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Route State · Agentic travel planning",
+  title: "Travel planner · Public demo",
   description:
     "A public LangGraph travel planner whose Orchestration Atlas is the live execution path.",
   openGraph: {
-    title: "Route State",
+    title: "Travel planner",
     description: "Watch LangGraph plan a trip in public, including interrupt and resume.",
   },
 };

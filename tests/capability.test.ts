@@ -29,7 +29,8 @@ describe("capability and scope", () => {
   it("names the demo limit and a next step it can do", () => {
     const reply = capabilityLimitReply(emptyTripState(), "book");
     expect(reply).toMatch(/can't/i);
-    expect(reply).toMatch(/hiring demo/i);
+    expect(reply).toMatch(/this app is a demo/i);
+    expect(reply).not.toMatch(/hiring|route state/i);
     expect(reply).toMatch(/fixed catalog/i);
     expect(reply).toMatch(/share a destination or a vibe/i);
   });
@@ -57,7 +58,8 @@ describe("capability and scope", () => {
     const reply = outOfCatalogReply(trip, "the USA");
     expect(reply).toMatch(/USA/);
     expect(reply).toMatch(/no destinations in the USA/i);
-    expect(reply).toMatch(/hiring demo/i);
+    expect(reply).toMatch(/this app is a demo/i);
+    expect(reply).not.toMatch(/hiring|route state/i);
     expect(reply).toMatch(/fixed set/i);
     expect(reply).toMatch(/Faro \/ Algarve/);
     expect(reply).toMatch(/Málaga/);
