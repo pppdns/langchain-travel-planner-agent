@@ -13,6 +13,8 @@ If live models fail or the budget is exhausted, starters play recorded runs with
 
 Optional: enable [Anonymous sign-ins](https://supabase.com/dashboard/project/_/auth/providers) and set `SUPABASE_SERVICE_ROLE_KEY` so Auth-backed RLS sessions work too.
 
+Sentry error reporting, logs, and session replay use `SENTRY_DSN`. They are on only when `NODE_ENV=production` and the deployment is not a Vercel preview. Development, Vitest, and Playwright stay off. Optional `SENTRY_AUTH_TOKEN` uploads source maps at build time.
+
 To turn on live models, pgvector retrieval, AI SDK token streaming, and Open-Meteo weather:
 
 ```sh

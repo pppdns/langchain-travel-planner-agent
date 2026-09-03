@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { createTripRequestSchema } from "@/src/ai/contracts/http";
 import { STARTERS } from "@/src/ai/contracts/starters";
 import { budgetExhausted } from "@/src/ai/runtime/budget";
@@ -33,7 +34,9 @@ export async function POST(request: Request) {
       mode,
       uploadsEnabled: env.UPLOADS_DISABLED !== "true",
     });
-  } catch {
+  } catch (error) {
+    Sentry.captureException(error);
+    Sentry.logger.error("trip.create_failed");
     return NextResponse.json({ error: "Could not start a trip." }, { status: 503 });
   }
 }

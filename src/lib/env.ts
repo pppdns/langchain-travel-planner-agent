@@ -21,6 +21,7 @@ const envSchema = z.object({
   MODEL_EMBEDDING: z.string().default("openai/text-embedding-3-small"),
   EMBEDDING_DIMENSIONS: z.coerce.number().default(1536),
   VERCEL_ENV: z.string().optional(),
+  SENTRY_DSN: z.string().optional(),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;
@@ -47,6 +48,7 @@ export function getEnv(): AppEnv {
     MODEL_EMBEDDING: process.env.MODEL_EMBEDDING,
     EMBEDDING_DIMENSIONS: process.env.EMBEDDING_DIMENSIONS,
     VERCEL_ENV: process.env.VERCEL_ENV,
+    SENTRY_DSN: process.env.SENTRY_DSN,
   });
 }
 
