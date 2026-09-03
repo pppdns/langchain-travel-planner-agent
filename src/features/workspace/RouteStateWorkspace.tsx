@@ -161,6 +161,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
             <GraphPulse
               events={state.events}
               activeNode={state.activeNode}
+              running={state.running}
               surface="desktop"
               onInspect={() => setState((current) => ({ ...current, atlasOpen: true }))}
             />
@@ -178,6 +179,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
           <GraphPulse
             events={state.events}
             activeNode={state.activeNode}
+            running={state.running}
             surface="mobile"
             onInspect={() => setState((current) => ({ ...current, atlasOpen: true }))}
           />
@@ -202,6 +204,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
           messages={state.messages}
           tripState={state.tripState}
           events={state.events}
+          activeNode={state.activeNode}
           running={state.running}
           draft={draft}
           onDraftChange={setDraft}

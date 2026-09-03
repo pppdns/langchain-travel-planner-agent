@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { getGraphNode, type GraphNodeId } from "@/src/ai/graph/spec";
 import type { PublicEvent } from "@/src/ai/stream/public-events";
 import { latestGraphCaption } from "@/src/features/workspace/atlas/node-status";
+import { agentProgressLabel } from "@/src/features/workspace/conversation/agent-progress";
 
 function PulseCopy({
   live,
@@ -26,17 +28,27 @@ function PulseCopy({
 export function GraphPulse({
   events,
   activeNode,
+  running,
   onInspect,
   surface,
 }: {
   events: PublicEvent[];
   activeNode: GraphNodeId | null;
+  running?: boolean;
   onInspect: () => void;
   surface: "desktop" | "mobile";
 }) {
-  const caption = latestGraphCaption(events);
+  const [tick, setTick] = useState(0);
+  const graphCaption = latestGraphCaption(events);
+  const live = Boolean(running) || graphCaption !== "Quiet until you start.";
+  const caption = running ? agentProgressLabel(events, activeNode, tick) : graphCaption;
   const label = activeNode ? getGraphNode(activeNode).label : "Graph";
-  const live = caption !== "Quiet until you start.";
+
+  useEffect(() => {
+    if (!running) return;
+    const id = window.setInterval(() => setTick((value) => value + 1), 400);
+    return () => window.clearInterval(id);
+  }, [running]);
 
   if (surface === "desktop") {
     return (

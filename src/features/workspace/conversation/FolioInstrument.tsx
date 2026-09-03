@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { CaretDown, CaretUp } from "@phosphor-icons/react";
 import { inferStopKind } from "@/src/ai/graph/itinerary";
 import type { Itinerary } from "@/src/ai/graph/state";
@@ -9,12 +10,18 @@ import { MotifBand } from "@/src/features/workspace/conversation/MotifBand";
 import { plateCoords } from "@/src/features/workspace/conversation/plates";
 
 export function FolioInstrument({ itinerary }: { itinerary: Itinerary }) {
+  const reduce = useReducedMotion();
   const [openDay, setOpenDay] = useState(1);
   const constraint = itinerary.constraintsHonored[0];
   const coords = plateCoords(itinerary.destinationSlug);
 
   return (
-    <div className="rounded-[14px] border border-border bg-surface p-1.5">
+    <motion.div
+      initial={reduce ? false : { opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
+      className="rounded-[14px] border border-border bg-surface p-1.5"
+    >
       <div className="overflow-hidden rounded-[10px] bg-elevated">
         <MotifBand motif={plateMotifFor(itinerary.destinationSlug)} className="h-20 rounded-none" />
         <div className="px-5 py-5">
@@ -64,6 +71,6 @@ export function FolioInstrument({ itinerary }: { itinerary: Itinerary }) {
           })}
         </ol>
       </div>
-    </div>
+    </motion.div>
   );
 }

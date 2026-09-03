@@ -4,7 +4,7 @@ Identity lock: every screen must read as the same product if placed side by side
 
 ## Goal
 
-A recruiter lands in a conversation, starts a trip in one click or a sentence, and watches the same thread gather facts, pause for a destination, and write an itinerary. LangGraph stays visible in the margin as an amber path.
+A recruiter lands in a conversation. The planner thinks, types the first question, then offers starters. The same thread gathers facts, pauses for a destination, and writes an itinerary. LangGraph stays visible in the margin as an amber path.
 
 ## Layout
 
@@ -24,7 +24,7 @@ Drive instruments from `tripState` and `pendingInterrupt`. Drive history from `m
 
 ## Components
 
-- `Conversation`: scrollable typographic log, opening, instruments, composer tray.
+- `Conversation`: chat thread with thinking, typing, opening, instruments, composer tray.
 - `Composer`: always-on labeled textarea in a nested bezel, Enter to send, Shift+Enter for a new line.
 - `ChoiceInstrument`: keyboard plates for gathering.
 - `DestinationInstrument`: machined plates from `candidateDestinations`, arrow keys and Enter.
@@ -44,7 +44,7 @@ Visible 2px accent focus, keyboard instruments and HITL, polite live region for 
 
 ## Acceptance
 
-- First screen is a question in a conversation plus a composer, not a card gallery.
+- First screen is a typed question in a conversation plus a composer, not a card gallery.
 - The thread never navigates away. Instruments arrive in the last turn.
 - Atlas is visible without changing pages on desktop.
 - Route line tracks real graph events.

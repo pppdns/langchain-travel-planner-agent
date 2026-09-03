@@ -3,25 +3,29 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { STARTER_COPY, type StarterId } from "@/src/ai/contracts/http";
+import type { GraphNodeId } from "@/src/ai/graph/spec";
 import type { PublicTripState } from "@/src/ai/graph/state";
 import type { PublicEvent } from "@/src/ai/stream/public-events";
 import type { PlateMotif } from "@/data/travel/catalog";
-import { latestGraphCaption } from "@/src/features/workspace/atlas/node-status";
+import { AgentStatus } from "@/src/features/workspace/conversation/AgentStatus";
 import { ChoiceInstrument } from "@/src/features/workspace/conversation/ChoiceInstrument";
 import { Composer } from "@/src/features/workspace/conversation/Composer";
 import { DestinationInstrument } from "@/src/features/workspace/conversation/DestinationInstrument";
 import { FolioInstrument } from "@/src/features/workspace/conversation/FolioInstrument";
 import { MotifBand } from "@/src/features/workspace/conversation/MotifBand";
+import { TypeLine } from "@/src/features/workspace/conversation/TypeLine";
 import {
   chipFieldForQuestion,
   isOffScopeQuestion,
   resolveInterrupt,
 } from "@/src/features/workspace/conversation/helpers";
+import { useAgentPresence } from "@/src/features/workspace/conversation/useAgentPresence";
 import { useListKeys } from "@/src/features/workspace/conversation/useListKeys";
 import type { ConversationMessage } from "@/src/features/workspace/types";
 import { cn } from "@/src/lib/cn";
 
 const STARTER_IDS = Object.keys(STARTER_COPY) as StarterId[];
+const EASE = [0.16, 1, 0.3, 1] as const;
 
 const STARTER_MOTIF: Record<StarterId, PlateMotif> = {
   "family-beach-europe": "coast",
@@ -31,37 +35,74 @@ const STARTER_MOTIF: Record<StarterId, PlateMotif> = {
 };
 
 function Opening({ disabled, onStarter }: { disabled?: boolean; onStarter: (id: StarterId) => void }) {
+  const reduce = useReducedMotion();
+  const [phase, setPhase] = useState<"think" | "write" | "ask" | "ready">(reduce ? "ready" : "think");
+
+  useEffect(() => {
+    if (reduce) return;
+    const id = window.setTimeout(() => setPhase("write"), 420);
+    return () => window.clearTimeout(id);
+  }, [reduce]);
+
   return (
-    <div className="max-w-[42rem]">
-      <h1 className="font-display text-[2.35rem] font-semibold leading-[1.1] tracking-tight text-text md:text-5xl">
-        Where should this trip begin?
-      </h1>
-      <p className="mt-4 max-w-[34rem] text-[15px] leading-7 text-muted">
-        Say the place and the pace. Or start from a trip I already understand.
-      </p>
-      <nav className="mt-8 grid gap-3" aria-label="Suggested starts">
-        {STARTER_IDS.map((id, index) => (
-          <button
-            key={id}
-            type="button"
-            disabled={disabled}
-            onClick={() => onStarter(id)}
-            className={cn(
-              "flex min-h-11 w-full items-stretch gap-0 rounded-[14px] border border-border bg-surface p-1.5 text-left transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
-              "hover:border-accent/70 hover:bg-elevated",
-              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-              "disabled:opacity-50",
+    <div className="mx-auto w-full max-w-[40rem]">
+      {(phase === "think" || phase === "write") && (
+        <AgentStatus label={phase === "think" ? "Thinking" : "Typing"} />
+      )}
+
+      {phase !== "think" && (
+        <div className="mt-3">
+          <p className="font-mono text-[11px] text-subtle">Planner</p>
+          <div className="mt-1 rounded-[16px] rounded-tl-md bg-elevated px-5 py-4 shadow-[inset_0_1px_0_oklch(0.93_0.014_85/0.05)]">
+            <TypeLine
+              as="h1"
+              text="Where should this trip begin?"
+              started
+              className="font-display text-[2.1rem] font-semibold leading-[1.12] tracking-tight text-text md:text-[2.6rem]"
+              onDone={() => setPhase((current) => (current === "write" ? "ask" : current))}
+            />
+            {(phase === "ask" || phase === "ready") && (
+              <motion.p
+                initial={reduce ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.36, ease: EASE }}
+                onAnimationComplete={() => setPhase((current) => (current === "ask" ? "ready" : current))}
+                className="mt-3 text-[15px] leading-7 text-muted"
+              >
+                Say the place and the pace. Or start from a trip I already understand.
+              </motion.p>
             )}
-          >
-            <MotifBand motif={STARTER_MOTIF[id]} className="h-16 w-16 shrink-0" />
-            <span className="flex min-w-0 flex-1 flex-col justify-center px-4 py-2">
-              <span className="font-mono text-[11px] text-accent">{String(index + 1).padStart(2, "0")}</span>
-              <span className="mt-1 text-[15px] leading-6 text-text">{STARTER_COPY[id].label}</span>
-              <span className="mt-0.5 text-sm text-muted">{STARTER_COPY[id].firstQuestionHint}</span>
-            </span>
-          </button>
-        ))}
-      </nav>
+          </div>
+        </div>
+      )}
+
+      {phase === "ready" && (
+        <nav className="mt-4 flex flex-col gap-2" aria-label="Suggested starts">
+          {STARTER_IDS.map((id, index) => (
+            <motion.button
+              key={id}
+              type="button"
+              disabled={disabled}
+              initial={reduce ? false : { opacity: 0, y: 12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.38, delay: index * 0.07, ease: EASE }}
+              onClick={() => onStarter(id)}
+              className={cn(
+                "flex min-h-11 w-full items-center gap-3 rounded-[16px] border border-border bg-surface px-1.5 py-1.5 text-left",
+                "transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-accent/70 hover:bg-elevated",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                "disabled:opacity-50",
+              )}
+            >
+              <MotifBand motif={STARTER_MOTIF[id]} className="h-12 w-12 shrink-0" />
+              <span className="min-w-0 flex-1 py-1 pr-3">
+                <span className="block text-[15px] leading-6 text-text">{STARTER_COPY[id].label}</span>
+                <span className="mt-0.5 block truncate text-sm text-muted">{STARTER_COPY[id].firstQuestionHint}</span>
+              </span>
+            </motion.button>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }
@@ -77,6 +118,7 @@ function TradeoffInstrument({
   disabled?: boolean;
   onChoose: (id: string) => void;
 }) {
+  const reduce = useReducedMotion();
   const { active, setActive } = useListKeys({
     count: options.length,
     disabled,
@@ -90,32 +132,31 @@ function TradeoffInstrument({
   return (
     <div role="radiogroup" aria-label={prompt} tabIndex={0} className="outline-none">
       <p className="text-sm leading-6 text-muted">{prompt}</p>
-      <div className="mt-4 grid gap-2">
+      <div className="mt-3 flex flex-col gap-2">
         {options.map((option, index) => {
           const selected = active === index;
           return (
-            <button
+            <motion.button
               key={option.id}
               type="button"
               role="radio"
               aria-checked={selected}
               disabled={disabled}
+              initial={reduce ? false : { opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.32, delay: index * 0.06, ease: EASE }}
               onMouseEnter={() => setActive(index)}
               onClick={() => onChoose(option.id)}
               className={cn(
-                "flex min-h-11 w-full items-center rounded-[14px] border p-1.5 text-left transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                "flex min-h-11 w-full items-center gap-3 rounded-full border px-4 text-left transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
                 "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                selected ? "border-accent bg-elevated shadow-[0_18px_50px_oklch(0.12_0.03_265/0.45)]" : "border-border bg-surface",
+                selected ? "border-accent bg-accent/12 text-text" : "border-border bg-surface text-muted",
                 disabled && "opacity-50",
               )}
             >
-              <span className="flex min-h-11 flex-1 items-center gap-3 rounded-[10px] bg-elevated px-4">
-                <span className={cn("font-mono text-[11px]", selected ? "text-accent" : "text-subtle")}>
-                  {index + 1}
-                </span>
-                <span className={cn("text-[15px]", selected ? "text-text" : "text-muted")}>{option.label}</span>
-              </span>
-            </button>
+              <span className={cn("font-mono text-[11px]", selected ? "text-accent" : "text-subtle")}>{index + 1}</span>
+              <span className="text-[15px]">{option.label}</span>
+            </motion.button>
           );
         })}
       </div>
@@ -124,10 +165,47 @@ function TradeoffInstrument({
   );
 }
 
+function ChatMessage({
+  message,
+  typeIn,
+  onTyped,
+}: {
+  message: ConversationMessage;
+  typeIn?: boolean;
+  onTyped?: () => void;
+}) {
+  const reduce = useReducedMotion();
+  const user = message.role === "user";
+
+  return (
+    <motion.article
+      initial={reduce ? false : user ? { opacity: 0, x: 18 } : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, x: 0, y: 0 }}
+      transition={{ duration: 0.36, ease: EASE }}
+      className={cn("flex", user ? "justify-end" : "justify-start")}
+    >
+      <div className={cn("max-w-[34rem]", user && "text-right")}>
+        <p className={cn("font-mono text-[11px]", user ? "text-accent" : "text-subtle")}>{user ? "You" : "Planner"}</p>
+        <div
+          className={cn(
+            "mt-1 px-4 py-3 text-left text-[15px] leading-7",
+            user
+              ? "rounded-[16px] rounded-tr-md border border-accent/30 bg-accent/12 text-text"
+              : "rounded-[16px] rounded-tl-md bg-elevated text-text shadow-[inset_0_1px_0_oklch(0.93_0.014_85/0.05)]",
+          )}
+        >
+          {typeIn && !user ? <TypeLine key={message.id} text={message.content} onDone={onTyped} /> : message.content}
+        </div>
+      </div>
+    </motion.article>
+  );
+}
+
 export function Conversation({
   messages,
   tripState,
   events,
+  activeNode,
   running,
   draft,
   onDraftChange,
@@ -139,6 +217,7 @@ export function Conversation({
   messages: ConversationMessage[];
   tripState: PublicTripState;
   events: PublicEvent[];
+  activeNode: GraphNodeId | null;
   running: boolean;
   draft: string;
   onDraftChange: (value: string) => void;
@@ -150,23 +229,27 @@ export function Conversation({
   const reduce = useReducedMotion();
   const end = useRef<HTMLDivElement>(null);
   const [focusToken, setFocusToken] = useState(0);
+  const [typedIds, setTypedIds] = useState<Record<string, boolean>>({});
+  const presence = useAgentPresence({ running, events, activeNode, reduce });
   const interrupt = resolveInterrupt(tripState, events);
   const recommendedSlug =
     interrupt?.options.find((option) => option.recommended)?.id ?? tripState.candidateDestinations[0]?.slug;
   const offScope = isOffScopeQuestion(tripState.lastQuestion) || /only plan trips/i.test(messages.at(-1)?.content ?? "");
+  const last = messages.at(-1);
+  const shownMessages = !presence.reveal && last?.role === "assistant" ? messages.slice(0, -1) : messages;
+  const typingMessage = presence.reveal && last?.role === "assistant" && !typedIds[last.id] ? last : null;
+  const turnReady = presence.reveal && !typingMessage;
   const showChoices =
-    !running && !interrupt && tripState.currentPlanningStage === "gathering" && tripState.guidedOptions.length > 0;
+    turnReady && !interrupt && tripState.currentPlanningStage === "gathering" && tripState.guidedOptions.length > 0;
   const showDestinations =
-    !running &&
-    interrupt?.interruptType === "choose_destination" &&
-    tripState.candidateDestinations.length > 0;
-  const showTradeoff = !running && interrupt?.interruptType === "approve_tradeoff";
-  const showFolio = Boolean(tripState.itinerary) && !showDestinations && !showTradeoff;
+    turnReady && interrupt?.interruptType === "choose_destination" && tripState.candidateDestinations.length > 0;
+  const showTradeoff = turnReady && interrupt?.interruptType === "approve_tradeoff";
+  const showFolio = turnReady && Boolean(tripState.itinerary) && !showDestinations && !showTradeoff;
   const hasInstrument = showChoices || showDestinations || showTradeoff || showFolio;
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end", behavior: reduce ? "auto" : "smooth" });
-  }, [messages, running, tripState.pendingInterrupt, tripState.itinerary, reduce]);
+  }, [hasInstrument, messages, presence.busy, reduce, tripState.itinerary, tripState.pendingInterrupt]);
 
   const placeholder = showDestinations
     ? "Type a place name, or pick from the list."
@@ -178,41 +261,29 @@ export function Conversation({
 
   return (
     <section id="conversation" className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="desk-field min-h-0 flex-1 overflow-y-auto px-5 py-8 md:px-8 md:py-10">
+      <div className="desk-field min-h-0 flex-1 overflow-y-auto px-5 py-7 md:px-8 md:py-9">
         {messages.length === 0 && <Opening disabled={running} onStarter={onStarter} />}
 
-        <div className={cn(messages.length > 0 && "space-y-7", messages.length === 0 && "hidden")}>
-          {messages.map((message) => (
-            <motion.article
+        <div className={cn("mx-auto w-full max-w-[40rem] space-y-5", messages.length === 0 && "hidden")}>
+          {shownMessages.map((message) => (
+            <ChatMessage
               key={message.id}
-              initial={reduce ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              className="max-w-[42rem]"
-            >
-              {message.role === "user" ? (
-                <div className="rounded-[14px] border border-border bg-surface p-1.5">
-                  <div className="rounded-[10px] bg-elevated px-4 py-3">
-                    <p className="font-mono text-[11px] text-accent">You</p>
-                    <p className="mt-1 text-[15px] leading-7 text-text">{message.content}</p>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <p className="font-mono text-[11px] text-subtle">Planner</p>
-                  <p className="mt-1 text-[15px] leading-7 text-text">{message.content}</p>
-                </div>
-              )}
-            </motion.article>
+              message={message}
+              typeIn={typingMessage?.id === message.id}
+              onTyped={() => setTypedIds((current) => ({ ...current, [message.id]: true }))}
+            />
           ))}
+
+          {presence.busy && <AgentStatus label={presence.label} />}
         </div>
 
-        {running && latestGraphCaption(events) !== "Quiet until you start." && (
-          <p className="mt-8 max-w-[42rem] font-mono text-[12px] text-accent">{latestGraphCaption(events)}</p>
-        )}
-
         {hasInstrument && (
-          <div className="mt-8 max-w-[52rem]">
+          <motion.div
+            initial={reduce ? false : { opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.42, ease: EASE }}
+            className="mx-auto mt-4 w-full max-w-[46rem]"
+          >
             {showChoices && (
               <ChoiceInstrument
                 question={tripState.lastQuestion ?? "What kind of trip are you trying to make?"}
@@ -244,25 +315,28 @@ export function Conversation({
             )}
 
             {showFolio && tripState.itinerary && <FolioInstrument itinerary={tripState.itinerary} />}
-          </div>
+          </motion.div>
         )}
 
-        {offScope && messages.length > 0 && (
-          <div className="mt-10">
+        {offScope && messages.length > 0 && turnReady && (
+          <div className="mt-8">
             <Opening disabled={running} onStarter={onStarter} />
           </div>
         )}
 
         {showFolio && !running && (
-          <div className="mt-6 flex flex-wrap gap-2">
+          <div className="mx-auto mt-5 flex w-full max-w-[40rem] flex-wrap gap-2">
             {[
               { label: "Slower pace", text: "Make the pace slower and keep days shorter." },
               { label: "Fewer transfers", text: "Cut optional transfers and keep the stay in one area." },
               { label: "Another destination", text: "Suggest another destination that still fits." },
-            ].map((action) => (
-              <button
+            ].map((action, index) => (
+              <motion.button
                 key={action.label}
                 type="button"
+                initial={reduce ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.08 + index * 0.05, ease: EASE }}
                 onClick={() => {
                   onDraftChange(action.text);
                   setFocusToken((token) => token + 1);
@@ -270,7 +344,7 @@ export function Conversation({
                 className="min-h-11 rounded-full border border-border bg-surface px-4 text-sm text-muted transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-accent hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
                 {action.label}
-              </button>
+              </motion.button>
             ))}
           </div>
         )}

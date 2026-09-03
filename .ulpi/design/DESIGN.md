@@ -5,7 +5,7 @@ aesthetic_direction: night operations desk
 color_strategy: restrained
 design_system: radix + owned themed components
 design_variance: 6
-motion_intensity: 5
+motion_intensity: 7
 visual_density: 6
 ---
 
@@ -15,7 +15,7 @@ Every screen must read as the same product if placed side by side.
 
 ## Design Read
 
-A night operations desk. The trip is a typographic log. Destinations are machined plates. The graph is an amber path on a dark chart.
+A night operations desk that talks like a chat. The trip is a typed thread. Destinations arrive as plates in the last turn. The graph is an amber path on a dark chart.
 
 ## Signature
 
@@ -56,12 +56,14 @@ Night only. Graphite neutrals. One amber accent. No cyan paper, no cream, no AI 
 
 No Inter, Arial, Fraunces, Instrument Serif, Newsreader, Playfair, or Space Grotesk in product chrome.
 
+Chat presence is HUD, not neon: amber pips, a caret, and short status verbs. No purple glow.
+
 ## Scales (locked)
 
 - spacing: `0 2 4 8 12 16 20 24 32 40 48 64`
 - radius: `sm 6`, `md 10`, `lg 14` plates and composer, `full` chips
 - shadow: `0 18px 50px oklch(0.12 0.03 265 / 0.45)` on atlas and selected plate
-- motion: 120 / 300 / 500, easing `cubic-bezier(0.16, 1, 0.3, 1)`, no bounce
+- motion: 120 / 300 / 500, easing `cubic-bezier(0.16, 1, 0.3, 1)`, no bounce. Chat presence can type and hold for 400-760ms. Reduced motion snaps to the final frame.
 - z: `base 0, sticky 30, atlasExpand 40, sheetBackdrop 45, sheet 50, tooltip 60, toast 70, skipLink 80`
 - icons: Phosphor Light, stroke 1.5
 
