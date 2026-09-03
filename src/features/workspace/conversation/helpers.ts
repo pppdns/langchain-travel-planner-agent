@@ -16,7 +16,8 @@ export function chipFieldForQuestion(question?: string): string {
   if (haystack.includes("pace")) return "pace";
   if (haystack.includes("budget")) return "budget";
   if (haystack.includes("origin") || haystack.includes("where from")) return "origin";
-  return "tripType";
+  if (haystack.includes("kind of trip") || haystack.includes("trying to make")) return "tripType";
+  return "preference";
 }
 
 export function interruptFromEvents(events: PublicEvent[]): PendingInterrupt | null {

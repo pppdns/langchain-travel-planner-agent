@@ -27,7 +27,7 @@ function AtlasBody({
   onForget?: (key: string) => void;
 }) {
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 p-3">
         <OrchestrationAtlas
           events={events}
@@ -45,7 +45,7 @@ function AtlasBody({
           onClose={onClearSelected}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -84,7 +84,7 @@ export function AtlasCompanion({
       <aside
         role="region"
         aria-label="Orchestration Atlas"
-        className="hidden min-h-0 flex-col overflow-y-auto border-l border-border bg-surface lg:flex lg:w-[min(42vw,560px)]"
+        className="hidden h-full min-h-0 flex-col overflow-hidden border-l border-border bg-surface lg:flex lg:w-[min(46vw,640px)]"
       >
         <div className="flex items-baseline justify-between px-4 pt-4">
           <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-subtle">Orchestration Atlas</p>
@@ -108,7 +108,7 @@ export function AtlasCompanion({
             role="dialog"
             aria-modal="true"
             aria-labelledby="atlas-sheet-title"
-            className="absolute inset-x-0 bottom-0 z-[50] flex h-[80dvh] flex-col rounded-t-[14px] border border-border bg-surface"
+            className="absolute inset-x-0 bottom-0 z-[50] flex h-[80dvh] flex-col overflow-hidden rounded-t-[14px] border border-border bg-surface"
           >
             <div className="flex items-center justify-between px-5 py-3">
               <h2 id="atlas-sheet-title" className="text-sm text-text">

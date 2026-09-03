@@ -4,7 +4,7 @@ import { afterGather, compileTripGraph } from "@/src/ai/graph/compile";
 import { emptyTripState, tripStateSchema } from "@/src/ai/graph/state";
 import { applyStarterSeed } from "@/src/ai/contracts/starters";
 import { detectRevision } from "@/src/ai/graph/revisions";
-import { finalizeSupervisor, nextSteer } from "@/src/ai/graph/supervise";
+import { extractReplyChoices, finalizeSupervisor, nextSteer } from "@/src/ai/graph/supervise";
 import { buildLivePresentation } from "@/src/ai/models/live";
 import { runTripGraph } from "@/src/ai/runtime/public-run";
 import { assertToolAllowed } from "@/src/ai/tools/catalog";
@@ -187,6 +187,74 @@ describe("supervisor routing", () => {
     expect(steered.trip.guidedOptions).toEqual(["4", "5", "6", "7"]);
     expect(steered.assistantText).toMatch(/april/i);
     expect(steered.assistantText).toMatch(/nights/i);
+  });
+
+  it("answers a hiking ask with landscape chips on the graph", async () => {
+    const graph = compileTripGraph();
+    const thread = { configurable: { thread_id: "asia-hike-chips" } };
+    await graph.invoke(
+      {
+        inputKind: "message",
+        inputText: "alone, somewhere in Asia. I want beautiful landscapes where I can hike",
+        trip: emptyTripState(),
+      },
+      thread,
+    );
+    const asked = await graph.getState(thread);
+    expect(asked.values.trip.guidedOptions).toEqual([
+      "Mountains and alpine lakes",
+      "Coastal cliffs and sea views",
+      "Volcanoes and dramatic terrain",
+      "Forests, waterfalls, and valleys",
+    ]);
+    expect(asked.values.assistantText).toMatch(/ideal hike/i);
+    expect(asked.values.assistantText).not.toMatch(/what kind of trip/i);
+  });
+
+  it("uses choices from the reply as chips instead of static trip types", () => {
+    const trip = emptyTripState();
+    const reply = [
+      "You asked for a destination with beautiful hiking landscapes.",
+      "",
+      "A few directions to choose from:",
+      "",
+      "1. Mountains and alpine lakes",
+      "2. Coastal cliffs and sea views",
+      "3. Volcanoes and dramatic terrain",
+      "4. Forests, waterfalls, and valleys",
+      "",
+      "Which sounds most like your ideal hike? What kind of trip are you trying to make?",
+    ].join("\n");
+    expect(extractReplyChoices(reply)?.options).toEqual([
+      "Mountains and alpine lakes",
+      "Coastal cliffs and sea views",
+      "Volcanoes and dramatic terrain",
+      "Forests, waterfalls, and valleys",
+    ]);
+    const steered = finalizeSupervisor(
+      {
+        messages: [],
+        trip,
+        inputText: "somewhere there are beautiful landscapes where I can hike",
+        inputKind: "message",
+        assistantText: "",
+      },
+      {
+        trip,
+        assistantText: reply,
+        messages: [],
+        supervisorRoute: "answer",
+      },
+    );
+    expect(steered.trip.guidedOptions).toEqual([
+      "Mountains and alpine lakes",
+      "Coastal cliffs and sea views",
+      "Volcanoes and dramatic terrain",
+      "Forests, waterfalls, and valleys",
+    ]);
+    expect(steered.trip.lastQuestion).toMatch(/ideal hike/i);
+    expect(steered.assistantText).not.toMatch(/what kind of trip/i);
+    expect(chipFieldForQuestion(steered.trip.lastQuestion)).toBe("preference");
   });
 
   it("leaves a draft-the-days choice after a question when planning can continue", async () => {

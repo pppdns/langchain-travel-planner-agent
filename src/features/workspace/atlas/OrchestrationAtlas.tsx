@@ -1,12 +1,16 @@
 "use client";
 
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useReducedMotion } from "motion/react";
 import {
   Background,
   Controls,
   Handle,
   Position,
   ReactFlow,
+  ReactFlowProvider,
+  useNodesInitialized,
+  useReactFlow,
   type Edge,
   type Node,
   type NodeProps,
@@ -58,7 +62,59 @@ function AtlasNode({ data, selected }: NodeProps) {
 
 const nodeTypes = { atlas: AtlasNode };
 
-export function OrchestrationAtlas({
+function AtlasFollowCam({
+  activeNode,
+  selectedNode,
+}: {
+  activeNode: GraphNodeId | null;
+  selectedNode: GraphNodeId | null;
+}) {
+  const { fitView, getNode, setCenter } = useReactFlow();
+  const ready = useNodesInitialized();
+  const reduce = useReducedMotion();
+  const hostRef = useRef<Element | null>(null);
+  const focus = selectedNode ?? activeNode;
+
+  useEffect(() => {
+    if (!ready) return;
+    let frame = 0;
+    const run = (duration: number) => {
+      if (!focus) {
+        void fitView({ padding: 0.16, duration, maxZoom: 1.12, minZoom: 0.78 });
+        return;
+      }
+      const node = getNode(focus);
+      if (!node) return;
+      const width = node.measured?.width ?? 180;
+      const height = node.measured?.height ?? 86;
+      void setCenter(node.position.x + width / 2, node.position.y + height / 2, {
+        zoom: 1.22,
+        duration,
+      });
+    };
+    frame = window.requestAnimationFrame(() => run(reduce ? 0 : 560));
+    hostRef.current ??= document.querySelector(".atlas-sheet");
+    const host = hostRef.current;
+    if (!host) {
+      return () => window.cancelAnimationFrame(frame);
+    }
+    let resizeFrame = 0;
+    const observer = new ResizeObserver(() => {
+      window.cancelAnimationFrame(resizeFrame);
+      resizeFrame = window.requestAnimationFrame(() => run(0));
+    });
+    observer.observe(host);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(resizeFrame);
+      observer.disconnect();
+    };
+  }, [fitView, focus, getNode, ready, reduce, setCenter]);
+
+  return null;
+}
+
+function AtlasCanvas({
   events,
   activeNode,
   selectedNode,
@@ -69,12 +125,6 @@ export function OrchestrationAtlas({
   selectedNode: GraphNodeId | null;
   onSelect: (id: GraphNodeId) => void;
 }) {
-  const mounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  );
-
   const nodes = useMemo<Node[]>(
     () =>
       GRAPH_NODES.map((node) => ({
@@ -114,24 +164,55 @@ export function OrchestrationAtlas({
   );
 
   return (
-    <div className="atlas-sheet relative h-full min-h-[280px] overflow-hidden rounded-[12px] border border-border">
+    <ReactFlow
+      nodes={nodes}
+      edges={edges}
+      nodeTypes={nodeTypes}
+      nodesDraggable={false}
+      nodesConnectable={false}
+      elementsSelectable
+      proOptions={{ hideAttribution: true }}
+      onNodeClick={(_, node) => onSelect(node.id as GraphNodeId)}
+      minZoom={0.55}
+      maxZoom={1.6}
+      className="h-full"
+      style={{ width: "100%", height: "100%" }}
+    >
+      <AtlasFollowCam activeNode={activeNode} selectedNode={selectedNode} />
+      <Background color="transparent" />
+      <Controls showInteractive={false} position="bottom-right" />
+    </ReactFlow>
+  );
+}
+
+export function OrchestrationAtlas({
+  events,
+  activeNode,
+  selectedNode,
+  onSelect,
+}: {
+  events: PublicEvent[];
+  activeNode: GraphNodeId | null;
+  selectedNode: GraphNodeId | null;
+  onSelect: (id: GraphNodeId) => void;
+}) {
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+
+  return (
+    <div className="atlas-sheet relative h-full min-h-0 overflow-hidden rounded-[12px] border border-border">
       {!mounted ? null : (
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        fitView
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable
-        proOptions={{ hideAttribution: true }}
-        onNodeClick={(_, node) => onSelect(node.id as GraphNodeId)}
-        minZoom={0.4}
-        maxZoom={1.4}
-      >
-        <Background color="transparent" />
-        <Controls showInteractive={false} position="bottom-right" />
-      </ReactFlow>
+        <ReactFlowProvider>
+          <AtlasCanvas
+            events={events}
+            activeNode={activeNode}
+            selectedNode={selectedNode}
+            onSelect={onSelect}
+          />
+        </ReactFlowProvider>
       )}
     </div>
   );

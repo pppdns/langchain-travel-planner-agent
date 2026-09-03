@@ -41,7 +41,7 @@ export const GRAPH_NODES: readonly GraphNodeSpec[] = [
       purpose: "Detect off-scope and injection attempts before tools run.",
       typicalTools: [],
     },
-    position: { x: 24, y: 140 },
+    position: { x: 16, y: 148 },
   },
   {
     id: "gather_preferences",
@@ -52,7 +52,7 @@ export const GRAPH_NODES: readonly GraphNodeSpec[] = [
       purpose: "Fill only useful missing TripState fields.",
       typicalTools: ["read_trip_state", "search_memories", "write_memory"],
     },
-    position: { x: 220, y: 40 },
+    position: { x: 16, y: 16 },
   },
   {
     id: "route_supervisor",
@@ -71,7 +71,7 @@ export const GRAPH_NODES: readonly GraphNodeSpec[] = [
         "convert_currency",
       ],
     },
-    position: { x: 220, y: 240 },
+    position: { x: 16, y: 280 },
   },
   {
     id: "discover_destinations",
@@ -87,7 +87,7 @@ export const GRAPH_NODES: readonly GraphNodeSpec[] = [
         "convert_currency",
       ],
     },
-    position: { x: 440, y: 40 },
+    position: { x: 236, y: 16 },
   },
   {
     id: "await_destination_choice",
@@ -98,7 +98,7 @@ export const GRAPH_NODES: readonly GraphNodeSpec[] = [
       purpose: "Pause the same thread until a destination is selected.",
       typicalTools: [],
     },
-    position: { x: 660, y: 40 },
+    position: { x: 456, y: 16 },
   },
   {
     id: "research_local",
@@ -109,7 +109,7 @@ export const GRAPH_NODES: readonly GraphNodeSpec[] = [
       purpose: "Neighborhoods, pace, and activity evidence for the chosen place.",
       typicalTools: ["search_travel_knowledge", "lookup_destination_profile", "get_weather"],
     },
-    position: { x: 440, y: 240 },
+    position: { x: 236, y: 280 },
   },
   {
     id: "plan_itinerary",
@@ -120,7 +120,7 @@ export const GRAPH_NODES: readonly GraphNodeSpec[] = [
       purpose: "Create a structured day-by-day plan from evidence and constraints.",
       typicalTools: ["search_travel_knowledge", "convert_currency"],
     },
-    position: { x: 660, y: 240 },
+    position: { x: 456, y: 280 },
   },
   {
     id: "critique_itinerary",
@@ -131,7 +131,7 @@ export const GRAPH_NODES: readonly GraphNodeSpec[] = [
       purpose: "Check pace, geography, and budget conflicts.",
       typicalTools: ["read_trip_state"],
     },
-    position: { x: 880, y: 240 },
+    position: { x: 456, y: 412 },
   },
   {
     id: "await_tradeoff",
@@ -142,7 +142,7 @@ export const GRAPH_NODES: readonly GraphNodeSpec[] = [
       purpose: "Optional human decision when two viable plans conflict.",
       typicalTools: [],
     },
-    position: { x: 880, y: 40 },
+    position: { x: 236, y: 412 },
   },
   {
     id: "present_plan",
@@ -153,7 +153,7 @@ export const GRAPH_NODES: readonly GraphNodeSpec[] = [
       purpose: "Project the public itinerary and invite revisions.",
       typicalTools: [],
     },
-    position: { x: 1100, y: 140 },
+    position: { x: 456, y: 544 },
   },
 ] as const;
 

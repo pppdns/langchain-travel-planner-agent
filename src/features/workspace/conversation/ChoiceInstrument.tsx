@@ -48,7 +48,7 @@ export function ChoiceInstrument({
               onMouseEnter={() => setActive(index)}
               onClick={() => onPick(field, option)}
               className={cn(
-                "inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-[15px] transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                "inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border px-4 text-left text-[15px] transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
                 "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                 selected ? "border-accent bg-accent/12 text-text" : "border-border bg-surface text-muted",
                 disabled && "opacity-50",

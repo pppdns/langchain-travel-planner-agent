@@ -57,7 +57,16 @@ export type SupervisorResult = {
 const supervisorRouteSchema = z.object({
   route: z.enum(SUPERVISOR_ROUTES),
   reply: z.string(),
+  question: z.string().optional(),
+  options: z.array(z.string().min(1).max(96)).max(6).optional(),
 });
+
+const STEER_TAILS = [
+  "What kind of trip are you trying to make?",
+  "How many nights should I plan for?",
+  "I can search for places that fit.",
+  "I can draft the days whenever you want.",
+];
 
 const SUPERVISOR_SYSTEM = [
   "You are Route State's travel supervisor. The scope guard already ran. Stay on travel.",
@@ -67,6 +76,7 @@ const SUPERVISOR_SYSTEM = [
   "Do not dump the full itinerary unless they asked for the plan or a revision.",
   "If the trip is not planned yet, keep planning after you answer: ask the next missing field, offer a visible next step, or route to research when the destination is known, or discover when it is not.",
   "Never leave an unfinished plan without a next question or a choice. If the user only answered an intake field such as city or 4, do not end the turn.",
+  "If you offer 2 to 6 concrete choices, list them as a numbered list. Those become the on-screen chips. Do not also ask what kind of trip in that same reply.",
   "No em-dashes. No fake match percentages.",
 ].join(" ");
 
@@ -145,6 +155,58 @@ function applySteer(trip: TripState, steer: { question: string; options: string[
   });
 }
 
+function cleanChoice(value: string) {
+  return value.replace(/^[*_`]+|[*_`]+$/g, "").replace(/\s+/g, " ").trim();
+}
+
+function isSteerQuestion(value: string) {
+  return STEER_TAILS.some((tail) => value.toLowerCase().includes(tail.toLowerCase()));
+}
+
+function isIntakeOptions(options: string[]) {
+  const norm = options.map((option) => option.toLowerCase());
+  if (norm.every((option) => ["beach", "city", "family", "mix"].includes(option))) return true;
+  if (norm.every((option) => ["4", "5", "6", "7"].includes(option))) return true;
+  return (
+    options.length === 1 &&
+    /^(draft the days|find destinations)$/i.test(options[0] ?? "")
+  );
+}
+
+export function extractReplyChoices(text: string): { question: string; options: string[] } | null {
+  const items: { n: number; t: string }[] = [];
+  for (const match of text.matchAll(/^\s*(?:(\d+)[\.\)\:]|[-*•])\s+(.+?)\s*$/gm)) {
+    const option = cleanChoice(match[2] ?? "");
+    if (!option || option.length > 80 || isSteerQuestion(option) || /which sounds|what country/i.test(option)) {
+      continue;
+    }
+    items.push({ n: Number(match[1] || items.length + 1), t: option });
+  }
+  if (items.length < 2) {
+    for (const match of text.matchAll(/(\d+)[\.\)]\s+([^0-9\n]+?)(?=(?:\s+\d+[\.\)])|$)/g)) {
+      const option = cleanChoice(match[2] ?? "");
+      if (!option || option.length > 80 || isSteerQuestion(option) || /which sounds|what country/i.test(option)) {
+        continue;
+      }
+      items.push({ n: Number(match[1]), t: option });
+    }
+  }
+  const options = [...new Map(items.sort((a, b) => a.n - b.n).map((item) => [item.t.toLowerCase(), item.t])).values()];
+  if (options.length < 2) return null;
+  const questions = text.match(/[^.!?\n]+\?/g)?.map((item) => item.trim()) ?? [];
+  const question = questions.filter((item) => !isSteerQuestion(item)).at(-1) ?? "Which of these fits?";
+  return { question, options: options.slice(0, 6) };
+}
+
+function stripSteerTails(text: string) {
+  let next = text.trim();
+  for (const tail of STEER_TAILS) {
+    const pattern = new RegExp(`(?:\\s+${tail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})+$`, "i");
+    next = next.replace(pattern, "").trim();
+  }
+  return next;
+}
+
 function isContinueIntent(state: SupervisorInput) {
   const text = state.inputText.toLowerCase();
   if (state.inputKind === "chip" && text.startsWith("continue:")) return true;
@@ -170,6 +232,24 @@ function withPlanningSteer(params: {
       trip: mergeTripState(trip, { currentPlanningStage: "awaiting_destination" }),
       text,
       assistantText: kept,
+      evidence,
+    });
+  }
+
+  const extracted = extractReplyChoices(assistantText);
+  const offered =
+    trip.guidedOptions.length >= 2 && !isIntakeOptions(trip.guidedOptions)
+      ? {
+          question: trip.lastQuestion || extracted?.question || "Which of these fits?",
+          options: trip.guidedOptions,
+        }
+      : null;
+  const choices = extracted ?? offered;
+  if (choices) {
+    return finishAnswer({
+      trip: applySteer(trip, choices),
+      text,
+      assistantText: stripSteerTails(assistantText),
       evidence,
     });
   }
@@ -365,7 +445,7 @@ async function runLiveSupervisor(
       tier: routeModelTier("supervise"),
       schema: supervisorRouteSchema,
       system:
-        "Choose the next Route State graph move. If the user asked a question and there is no itinerary yet, choose answer. Do not jump to discover, research, or plan just because a destination is known. answer ends the turn. discover/research/plan/present hand off to specialist nodes. await_destination only if a destination choice is already pending and they are picking a place, not asking a question. Use only the supplied facts.",
+        "Choose the next Route State graph move. If the user asked a question and there is no itinerary yet, choose answer. Do not jump to discover, research, or plan just because a destination is known. answer ends the turn. discover/research/plan/present hand off to specialist nodes. await_destination only if a destination choice is already pending and they are picking a place, not asking a question. If the draft lists 2 to 6 concrete choices, copy them into options and set question to the sentence that asks which to pick. Use only the supplied facts.",
       prompt: [
         `User message: ${state.inputText}`,
         `Trip: ${tripBrief(state.trip)}`,
@@ -380,8 +460,16 @@ async function runLiveSupervisor(
     const reply = routed.output.reply.trim() || drafted.text.trim();
     if (route === "answer") {
       if (!reply) return null;
+      const offered = routed.output.options?.map((item) => item.trim()).filter(Boolean).slice(0, 6);
+      const trip =
+        offered && offered.length >= 2
+          ? applySteer(state.trip, {
+              question: routed.output.question?.trim() || extractReplyChoices(reply)?.question || "Which of these fits?",
+              options: offered,
+            })
+          : state.trip;
       return finishAnswer({
-        trip: state.trip,
+        trip,
         text: state.inputText,
         assistantText: reply,
         evidence,
@@ -418,6 +506,25 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
     !(state.inputKind === "message" && looksLikeUserQuestion(text))
   ) {
     return finishRoute({ trip, text, route: "await_destination" });
+  }
+
+  if (/hike|hiking|trek|trail|alpine|landscape/.test(haystack) && !trip.itinerary) {
+    return withPlanningSteer({
+      trip,
+      text,
+      assistantText: [
+        "You asked for a destination with beautiful hiking landscapes.",
+        "",
+        "A few directions to choose from:",
+        "",
+        "1. Mountains and alpine lakes",
+        "2. Coastal cliffs and sea views",
+        "3. Volcanoes and dramatic terrain",
+        "4. Forests, waterfalls, and valleys",
+        "",
+        "Which sounds most like your ideal hike?",
+      ].join("\n"),
+    });
   }
 
   if (/weather|forecast|temperature|rain|how hot|how warm/.test(haystack)) {
