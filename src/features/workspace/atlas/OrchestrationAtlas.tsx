@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import {
   Background,
   Controls,
@@ -27,17 +27,29 @@ function AtlasNode({ data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        "relative min-w-[168px] rounded-sm border bg-elevated px-3 py-2 text-text shadow-[0_8px_24px_oklch(0.24_0.028_250/0.06)]",
-        node.status === "idle" && "border-map-line",
+        "relative min-w-[168px] rounded-[10px] border bg-elevated px-3 py-2 text-text shadow-[inset_0_1px_0_oklch(0.93_0.014_85/0.05)]",
+        node.status === "idle" && "border-border",
         node.status === "active" && "border-accent",
         node.status === "waiting" && "border-accent",
-        node.status === "done" && "border-info",
+        node.status === "done" && "border-success/50",
         selected && "outline outline-2 outline-accent",
       )}
     >
       <Handle type="target" id="in" position={Position.Left} className="!h-2 !w-2 !border-map-line !bg-map-line" />
       <Handle type="source" id="out" position={Position.Right} className="!h-2 !w-2 !border-map-line !bg-map-line" />
-      <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-subtle">{node.status}</div>
+      <div className="flex items-center gap-2">
+        <span
+          className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            node.status === "idle" && "bg-border",
+            node.status === "active" && "live-pip",
+            node.status === "waiting" && "live-pip",
+            node.status === "done" && "bg-success",
+          )}
+          data-live={node.status === "active" || node.status === "waiting" ? "true" : "false"}
+        />
+        <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">{node.status}</div>
+      </div>
       <div className="mt-1 text-sm font-medium">{node.label}</div>
       <div className="mt-0.5 max-w-[180px] text-[11px] leading-snug text-muted">{node.caption}</div>
     </div>
@@ -57,6 +69,12 @@ export function OrchestrationAtlas({
   selectedNode: GraphNodeId | null;
   onSelect: (id: GraphNodeId) => void;
 }) {
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+
   const nodes = useMemo<Node[]>(
     () =>
       GRAPH_NODES.map((node) => ({
@@ -97,6 +115,7 @@ export function OrchestrationAtlas({
 
   return (
     <div className="atlas-sheet relative h-full min-h-[280px] overflow-hidden rounded-[12px] border border-border">
+      {!mounted ? null : (
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -113,6 +132,7 @@ export function OrchestrationAtlas({
         <Background color="transparent" />
         <Controls showInteractive={false} position="bottom-right" />
       </ReactFlow>
+      )}
     </div>
   );
 }

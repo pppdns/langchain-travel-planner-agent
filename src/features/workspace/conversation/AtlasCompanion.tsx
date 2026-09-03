@@ -78,8 +78,12 @@ export function AtlasCompanion({
       <aside
         role="region"
         aria-label="Orchestration Atlas"
-        className="hidden min-h-0 flex-col border-l border-border lg:flex lg:w-[min(42vw,560px)]"
+        className="hidden min-h-0 flex-col border-l border-border bg-surface lg:flex lg:w-[min(42vw,560px)]"
       >
+        <div className="flex items-baseline justify-between px-4 pt-4">
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-subtle">Orchestration Atlas</p>
+          <p className="font-mono text-[11px] text-subtle">Live path</p>
+        </div>
         <AtlasBody
           events={events}
           activeNode={activeNode}
@@ -92,12 +96,12 @@ export function AtlasCompanion({
 
       {sheetOpen && (
         <div className="fixed inset-0 z-[45] lg:hidden">
-          <button type="button" aria-label="Close atlas" className="absolute inset-0 bg-text/20" onClick={onCloseSheet} />
+          <button type="button" aria-label="Close atlas" className="absolute inset-0 bg-background/70" onClick={onCloseSheet} />
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="atlas-sheet-title"
-            className="absolute inset-x-0 bottom-0 z-[50] flex h-[80dvh] flex-col rounded-t-[12px] border border-border bg-background"
+            className="absolute inset-x-0 bottom-0 z-[50] flex h-[80dvh] flex-col rounded-t-[14px] border border-border bg-surface"
           >
             <div className="flex items-center justify-between px-5 py-3">
               <h2 id="atlas-sheet-title" className="text-sm text-text">

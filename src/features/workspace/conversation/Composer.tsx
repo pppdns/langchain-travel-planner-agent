@@ -32,46 +32,48 @@ export function Composer({
 
   return (
     <form
-      className="border-t border-border bg-background px-5 py-4"
+      className="border-t border-border bg-background/90 px-5 pb-5 pt-3"
       onSubmit={(event) => {
         event.preventDefault();
         submit();
       }}
     >
-      <div className="flex items-end gap-3">
-        <div className="min-w-0 flex-1">
+      <div className="rounded-[14px] border border-border bg-surface p-1.5 shadow-[inset_0_1px_0_oklch(0.93_0.014_85/0.04)]">
+        <div className="rounded-[10px] bg-elevated px-4 py-3 shadow-[inset_0_1px_0_oklch(0.93_0.014_85/0.05)]">
           <label htmlFor="composer" className="block font-mono text-[11px] text-subtle">
             Message
           </label>
-          <textarea
-            ref={area}
-            id="composer"
-            value={draft}
-            disabled={disabled}
-            rows={2}
-            placeholder={placeholder}
-            onChange={(event) => onDraftChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                submit();
-              }
-            }}
-            className="mt-1 min-h-11 w-full resize-none bg-transparent py-2 text-[15px] leading-6 text-text outline-none placeholder:text-subtle focus-visible:outline-none"
-          />
+          <div className="mt-1 flex items-end gap-3">
+            <textarea
+              ref={area}
+              id="composer"
+              value={draft}
+              disabled={disabled}
+              rows={2}
+              placeholder={placeholder}
+              onChange={(event) => onDraftChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  submit();
+                }
+              }}
+              className="min-h-11 flex-1 resize-none bg-transparent py-2 text-[15px] leading-6 text-text outline-none placeholder:text-subtle"
+            />
+            <button
+              type="submit"
+              disabled={disabled || !draft.trim()}
+              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-4 text-sm text-ink transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.98] disabled:opacity-40"
+            >
+              <span>Send</span>
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-ink/10">
+                <ArrowUp weight="light" size={14} />
+              </span>
+            </button>
+          </div>
         </div>
-        <button
-          type="submit"
-          disabled={disabled || !draft.trim()}
-          className="inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-4 text-sm text-elevated transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.98] disabled:opacity-40"
-        >
-          <span>Send</span>
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-elevated/15">
-            <ArrowUp weight="light" size={14} />
-          </span>
-        </button>
       </div>
-      <p className="font-mono text-[11px] text-subtle">Enter to send. Shift+Enter for a new line.</p>
+      <p className="mt-2 px-1 font-mono text-[11px] text-subtle">Enter to send. Shift+Enter for a new line.</p>
     </form>
   );
 }

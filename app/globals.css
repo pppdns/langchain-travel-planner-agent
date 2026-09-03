@@ -2,21 +2,23 @@
 @import "@xyflow/react/dist/style.css";
 
 :root {
-  --background: oklch(0.985 0.008 230);
-  --surface: oklch(0.965 0.012 228);
-  --elevated: oklch(0.992 0.004 230);
-  --text: oklch(0.24 0.028 250);
-  --muted: oklch(0.42 0.022 248);
-  --subtle: oklch(0.50 0.018 248);
-  --border: oklch(0.88 0.014 230);
-  --accent: oklch(0.50 0.175 28);
-  --map-water: oklch(0.94 0.028 230);
-  --map-land: oklch(0.93 0.018 160);
-  --map-line: oklch(0.78 0.02 230);
-  --success: oklch(0.45 0.09 155);
-  --warning: oklch(0.55 0.12 75);
-  --info: oklch(0.48 0.07 240);
-  --shadow-atlas: 0 12px 40px oklch(0.24 0.028 250 / 0.08);
+  --background: oklch(0.18 0.018 265);
+  --surface: oklch(0.22 0.020 265);
+  --elevated: oklch(0.26 0.022 265);
+  --text: oklch(0.93 0.014 85);
+  --muted: oklch(0.74 0.022 80);
+  --subtle: oklch(0.62 0.020 80);
+  --border: oklch(0.32 0.018 265);
+  --accent: oklch(0.76 0.140 70);
+  --ink: oklch(0.18 0.030 60);
+  --map-water: oklch(0.20 0.022 250);
+  --map-land: oklch(0.21 0.018 160);
+  --map-line: oklch(0.30 0.016 250);
+  --success: oklch(0.68 0.090 155);
+  --warning: oklch(0.76 0.140 70);
+  --danger: oklch(0.68 0.150 28);
+  --info: oklch(0.70 0.050 230);
+  --shadow-atlas: 0 18px 50px oklch(0.12 0.03 265 / 0.45);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -29,30 +31,17 @@
   --color-subtle: var(--subtle);
   --color-border: var(--border);
   --color-accent: var(--accent);
+  --color-ink: var(--ink);
   --color-map-water: var(--map-water);
   --color-map-land: var(--map-land);
   --color-map-line: var(--map-line);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-danger: var(--danger);
   --color-info: var(--info);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-newsreader), "Iowan Old Style", serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: oklch(0.17 0.025 245);
-    --surface: oklch(0.21 0.028 245);
-    --elevated: oklch(0.25 0.03 245);
-    --text: oklch(0.93 0.015 230);
-    --muted: oklch(0.75 0.02 230);
-    --subtle: oklch(0.68 0.02 230);
-    --border: oklch(0.32 0.02 245);
-    --map-water: oklch(0.22 0.03 240);
-    --map-land: oklch(0.23 0.025 160);
-    --map-line: oklch(0.36 0.02 230);
-  }
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 * {
@@ -74,23 +63,181 @@ body {
   font-family: var(--font-display);
 }
 
+.grain {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.desk-field {
+  background:
+    radial-gradient(720px 380px at 8% 0%, color-mix(in oklch, var(--accent) 7%, transparent), transparent 58%),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 47px,
+      color-mix(in oklch, var(--map-line) 45%, transparent) 48px
+    ),
+    var(--background);
+}
+
+.live-pip {
+  display: inline-block;
+  height: 0.375rem;
+  width: 0.375rem;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.live-pip[data-live="true"] {
+  background: var(--accent);
+  animation: live-pip 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.motif-band {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 10px;
+  isolation: isolate;
+}
+
+.motif-coast {
+  background:
+    radial-gradient(130% 90% at 50% 140%, color-mix(in oklch, var(--accent) 50%, transparent), transparent 54%),
+    linear-gradient(180deg, #223044 0%, #1e343c 48%, #2f4a38 100%);
+}
+
+.motif-coast::before,
+.motif-coast::after {
+  content: "";
+  position: absolute;
+  left: -8%;
+  right: -8%;
+  height: 34%;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in oklch, var(--accent) 62%, transparent);
+}
+
+.motif-coast::before {
+  bottom: 22%;
+}
+
+.motif-coast::after {
+  bottom: 4%;
+  opacity: 0.65;
+}
+
+.motif-harbor {
+  background:
+    linear-gradient(90deg, color-mix(in oklch, var(--accent) 28%, var(--map-line)) 1.5px, transparent 1.5px) 0 0 / 16% 100%,
+    linear-gradient(180deg, #1c2638, #243240);
+}
+
+.motif-harbor::after {
+  content: "";
+  position: absolute;
+  inset: 36% 10% 24% 10%;
+  border-top: 1.5px solid color-mix(in oklch, var(--accent) 70%, transparent);
+  background: color-mix(in oklch, var(--accent) 16%, transparent);
+}
+
+.motif-grid {
+  background:
+    linear-gradient(color-mix(in oklch, var(--accent) 22%, var(--map-line)) 1px, transparent 1px) 0 0 / 100% 20%,
+    linear-gradient(90deg, color-mix(in oklch, var(--accent) 22%, var(--map-line)) 1px, transparent 1px) 0 0 / 16% 100%,
+    linear-gradient(180deg, #222838, #2a3144);
+}
+
+.motif-grid::after {
+  content: "";
+  position: absolute;
+  inset: 26% 34% 16% 16%;
+  background: color-mix(in oklch, var(--accent) 34%, transparent);
+}
+
+.motif-island {
+  background:
+    radial-gradient(circle at 50% 58%, color-mix(in oklch, var(--accent) 42%, transparent) 0 18%, transparent 19%),
+    radial-gradient(circle at 50% 58%, transparent 0 32%, color-mix(in oklch, var(--accent) 40%, transparent) 33% 35%, transparent 36%),
+    radial-gradient(circle at 50% 58%, transparent 0 46%, color-mix(in oklch, var(--accent) 28%, transparent) 47% 49%, transparent 50%),
+    linear-gradient(180deg, #1c2838, #243640);
+}
+
+.motif-river {
+  background:
+    repeating-linear-gradient(
+      118deg,
+      transparent,
+      transparent 9px,
+      color-mix(in oklch, var(--accent) 24%, var(--map-line)) 10px
+    ),
+    linear-gradient(160deg, #1c2c3a, #243832 55%, #263040);
+}
+
+.motif-river::after {
+  content: "";
+  position: absolute;
+  inset: 28% -20% 34% -20%;
+  transform: rotate(-18deg);
+  background: color-mix(in oklch, var(--accent) 28%, transparent);
+}
+
+.motif-hills {
+  background: linear-gradient(180deg, #222838, #2a3024);
+}
+
+.motif-hills::before,
+.motif-hills::after {
+  content: "";
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  height: 70%;
+  border-radius: 50% 50% 0 0;
+  background: color-mix(in oklch, var(--map-land) 55%, #3a4430);
+}
+
+.motif-hills::before {
+  bottom: 8%;
+  opacity: 0.9;
+}
+
+.motif-hills::after {
+  bottom: -18%;
+  background: color-mix(in oklch, var(--accent) 28%, #384030);
+}
+
+@keyframes live-pip {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.28;
+  }
+}
+
 .atlas-sheet {
   background:
-    radial-gradient(1200px 700px at 20% 10%, var(--map-water), transparent 55%),
-    radial-gradient(900px 600px at 80% 90%, var(--map-land), transparent 50%),
+    radial-gradient(900px 520px at 18% 12%, color-mix(in oklch, var(--accent) 8%, transparent), transparent 55%),
+    radial-gradient(800px 480px at 88% 88%, var(--map-land), transparent 50%),
     repeating-linear-gradient(
       0deg,
       transparent,
       transparent 31px,
-      color-mix(in oklch, var(--map-line) 35%, transparent) 32px
+      color-mix(in oklch, var(--map-line) 70%, transparent) 32px
     ),
     repeating-linear-gradient(
       90deg,
       transparent,
       transparent 31px,
-      color-mix(in oklch, var(--map-line) 35%, transparent) 32px
+      color-mix(in oklch, var(--map-line) 70%, transparent) 32px
     ),
-    var(--elevated);
+    var(--map-water);
   box-shadow: var(--shadow-atlas);
 }
 
@@ -102,11 +249,27 @@ body {
   font-family: var(--font-geist-sans), ui-sans-serif, sans-serif;
 }
 
+.react-flow__controls {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.react-flow__controls-button {
+  background: var(--elevated);
+  border-bottom: 1px solid var(--border);
+  fill: var(--text);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .live-pip[data-live="true"] {
+    animation: none;
   }
 }

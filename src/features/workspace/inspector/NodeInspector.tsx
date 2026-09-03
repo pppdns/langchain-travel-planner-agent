@@ -21,42 +21,50 @@ export function NodeInspector({
   const evidence = events.filter((event) => event.type === "evidence").flatMap((event) => event.items);
 
   return (
-    <aside className="border-t border-border bg-elevated px-5 py-4 lg:border-l lg:border-t-0">
+    <aside className="border-t border-border bg-elevated px-5 py-4">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-subtle">Inspector</p>
           <h3 className="mt-1 text-base font-medium">{spec.label}</h3>
           <p className="mt-1 text-sm text-muted">{spec.inspector.purpose}</p>
         </div>
-        <button type="button" onClick={onClose} className="min-h-11 px-3 text-sm text-muted">
+        <button
+          type="button"
+          onClick={onClose}
+          className="min-h-11 px-3 text-sm text-muted transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
           Close
         </button>
       </div>
 
-      <div className="mt-4 space-y-3 text-sm">
-        <p>
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">L1 tools</span>
-          <br />
-          {spec.inspector.typicalTools.join(", ") || "No tools"}
-        </p>
-        <p>
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">Evidence titles</span>
-          <br />
-          {evidence.length ? evidence.map((item) => item.title).join(" · ") : "None yet"}
-        </p>
-        <p>
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">L2 public state</span>
-          <br />
-          Stage {tripState.currentPlanningStage}
-          {tripState.destinationName ? ` · ${tripState.destinationName}` : ""}
-        </p>
+      <dl className="mt-4 grid gap-3 text-sm">
+        <div>
+          <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">L1 tools</dt>
+          <dd className="mt-1 text-text">{spec.inspector.typicalTools.join(", ") || "No tools"}</dd>
+        </div>
+        <div>
+          <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">Evidence titles</dt>
+          <dd className="mt-1 text-text">
+            {evidence.length ? evidence.map((item) => item.title).join(" · ") : "None yet"}
+          </dd>
+        </div>
+        <div>
+          <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">L2 public state</dt>
+          <dd className="mt-1 text-text">
+            Stage {tripState.currentPlanningStage}
+            {tripState.destinationName ? ` · ${tripState.destinationName}` : ""}
+          </dd>
+        </div>
         {usage && usage.type === "usage" && (
-          <p className="font-mono text-xs text-muted">
-            {usage.modelTier} · {usage.latencyMs ?? 0}ms · {usage.inputTokens ?? 0}/{usage.outputTokens ?? 0} tok · ~
-            {usage.estimatedCents ?? 0}¢ · retries {usage.retries}
-          </p>
+          <div>
+            <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">Usage</dt>
+            <dd className="mt-1 font-mono text-xs text-muted">
+              {usage.modelTier} · {usage.latencyMs ?? 0}ms · {usage.inputTokens ?? 0}/{usage.outputTokens ?? 0} tok · ~
+              {usage.estimatedCents ?? 0}¢ · retries {usage.retries}
+            </dd>
+          </div>
         )}
-      </div>
+      </dl>
     </aside>
   );
 }

@@ -151,23 +151,37 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
       >
         Skip to conversation
       </a>
-      <header className="flex items-center justify-between gap-4 border-b border-border px-5 py-3">
-        <div className="min-w-0">
-          <p className="text-sm text-text">Route State</p>
+      <header className="border-b border-border px-5 py-3 lg:h-16 lg:py-0">
+        <div className="flex items-center justify-between gap-4 lg:h-full">
+          <div className="flex min-w-0 items-baseline gap-3">
+            <p className="font-display text-sm font-semibold tracking-[0.14em] text-text">ROUTE STATE</p>
+            <p className="hidden font-mono text-[11px] text-subtle sm:block">Public travel planner</p>
+          </div>
+          <div className="hidden min-w-0 flex-1 lg:block">
+            <GraphPulse
+              events={state.events}
+              activeNode={state.activeNode}
+              surface="desktop"
+              onInspect={() => setState((current) => ({ ...current, atlasOpen: true }))}
+            />
+          </div>
+          <nav className="flex shrink-0 items-center gap-4 text-sm">
+            <Link href="/case-study" className="text-muted transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:text-text">
+              Case study
+            </Link>
+            <a href="https://github.com" className="hidden text-subtle transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:text-text sm:inline">
+              Built by Denes Papp
+            </a>
+          </nav>
+        </div>
+        <div className="mt-1 lg:hidden">
           <GraphPulse
             events={state.events}
             activeNode={state.activeNode}
+            surface="mobile"
             onInspect={() => setState((current) => ({ ...current, atlasOpen: true }))}
           />
         </div>
-        <nav className="flex shrink-0 items-center gap-4 text-sm">
-          <Link href="/case-study" className="text-muted hover:text-text">
-            Case study
-          </Link>
-          <a href="https://github.com" className="hidden text-subtle hover:text-text sm:inline">
-            Built by Denes Papp
-          </a>
-        </nav>
       </header>
 
       {state.mode === "replay" && (
@@ -176,7 +190,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
         </div>
       )}
       {state.error && (
-        <div className="border-b border-accent/30 bg-elevated px-5 py-2 text-sm text-accent">{state.error}</div>
+        <div className="border-b border-danger/30 bg-elevated px-5 py-2 text-sm text-danger">{state.error}</div>
       )}
 
       <div aria-live="polite" className="sr-only">
