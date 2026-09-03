@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { STARTER_COPY, type StarterId } from "@/src/ai/contracts/http";
-import type { GraphNodeId } from "@/src/ai/graph/spec";
+import { getGraphNode, type GraphNodeId } from "@/src/ai/graph/spec";
 import type { PublicTripState } from "@/src/ai/graph/state";
 import type { PublicEvent } from "@/src/ai/stream/public-events";
 import type { PlateMotif } from "@/data/travel/catalog";
-import { AgentStatus } from "@/src/features/workspace/conversation/AgentStatus";
+import { AgentProcessPath, AgentStatus } from "@/src/features/workspace/conversation/AgentStatus";
+import { buildAgentProcess } from "@/src/features/workspace/conversation/agent-process";
 import { ChoiceInstrument } from "@/src/features/workspace/conversation/ChoiceInstrument";
 import { Composer } from "@/src/features/workspace/conversation/Composer";
 import { DestinationInstrument } from "@/src/features/workspace/conversation/DestinationInstrument";
@@ -20,7 +21,6 @@ import {
   isOffScopeQuestion,
   resolveInterrupt,
 } from "@/src/features/workspace/conversation/helpers";
-import { useAgentPresence } from "@/src/features/workspace/conversation/useAgentPresence";
 import { useListKeys } from "@/src/features/workspace/conversation/useListKeys";
 import type { ConversationMessage } from "@/src/features/workspace/types";
 import { cn } from "@/src/lib/cn";
@@ -197,6 +197,11 @@ function ChatMessage({
         >
           {typeIn && !user ? <TypeLine key={message.id} text={message.content} onDone={onTyped} /> : message.content}
         </div>
+        {!user && message.process && message.process.steps.length > 0 && (
+          <div className="mt-2 pl-1">
+            <AgentProcessPath process={message.process} />
+          </div>
+        )}
       </div>
     </motion.article>
   );
@@ -206,8 +211,10 @@ export function Conversation({
   messages,
   tripState,
   events,
+  runEvents,
   activeNode,
   running,
+  presence,
   draft,
   onDraftChange,
   onStarter,
@@ -220,8 +227,10 @@ export function Conversation({
   messages: ConversationMessage[];
   tripState: PublicTripState;
   events: PublicEvent[];
+  runEvents?: PublicEvent[];
   activeNode: GraphNodeId | null;
   running: boolean;
+  presence: { busy: boolean; reveal: boolean; label: string };
   draft: string;
   uploadsEnabled?: boolean;
   onDraftChange: (value: string) => void;
@@ -234,7 +243,8 @@ export function Conversation({
   const reduce = useReducedMotion();
   const end = useRef<HTMLDivElement>(null);
   const [typedIds, setTypedIds] = useState<Record<string, boolean>>({});
-  const presence = useAgentPresence({ running, events, activeNode, reduce });
+  const liveProcess = buildAgentProcess(runEvents ?? []);
+  const nodeLabel = activeNode ? getGraphNode(activeNode).label : undefined;
   const interrupt = resolveInterrupt(tripState, events);
   const recommendedSlug =
     interrupt?.options.find((option) => option.recommended)?.id ?? tripState.candidateDestinations[0]?.slug;
@@ -278,7 +288,13 @@ export function Conversation({
             />
           ))}
 
-          {presence.busy && <AgentStatus label={presence.label} />}
+          {presence.busy && (
+            <AgentStatus
+              label={presence.label}
+              nodeLabel={nodeLabel}
+              process={liveProcess.steps.length ? liveProcess : undefined}
+            />
+          )}
         </div>
 
         {hasInstrument && (

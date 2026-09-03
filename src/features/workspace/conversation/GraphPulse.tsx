@@ -29,26 +29,28 @@ export function GraphPulse({
   events,
   activeNode,
   running,
+  progressLabel,
   onInspect,
   surface,
 }: {
   events: PublicEvent[];
   activeNode: GraphNodeId | null;
   running?: boolean;
+  progressLabel?: string;
   onInspect: () => void;
   surface: "desktop" | "mobile";
 }) {
   const [tick, setTick] = useState(0);
   const graphCaption = latestGraphCaption(events);
   const live = Boolean(running) || graphCaption !== "Quiet until you start.";
-  const caption = running ? agentProgressLabel(events, activeNode, tick) : graphCaption;
+  const caption = running ? (progressLabel ?? agentProgressLabel(events, activeNode, tick)) : graphCaption;
   const label = activeNode ? getGraphNode(activeNode).label : "Graph";
 
   useEffect(() => {
-    if (!running) return;
+    if (!running || progressLabel) return;
     const id = window.setInterval(() => setTick((value) => value + 1), 400);
     return () => window.clearInterval(id);
-  }, [running]);
+  }, [progressLabel, running]);
 
   if (surface === "desktop") {
     return (

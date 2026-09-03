@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useReducedMotion } from "motion/react";
 import { emptyTripState, publicTripStateSchema, type PublicTripState } from "@/src/ai/graph/state";
 import type { PublicEvent } from "@/src/ai/stream/public-events";
 import { STARTER_COPY, type StarterId } from "@/src/ai/contracts/http";
@@ -10,6 +11,8 @@ import { AtlasCompanion } from "@/src/features/workspace/conversation/AtlasCompa
 import { Conversation } from "@/src/features/workspace/conversation/Conversation";
 import { GraphPulse } from "@/src/features/workspace/conversation/GraphPulse";
 import { TripBrief } from "@/src/features/workspace/conversation/TripBrief";
+import { buildAgentProcess } from "@/src/features/workspace/conversation/agent-process";
+import { useAgentPresence } from "@/src/features/workspace/conversation/useAgentPresence";
 import {
   chipFieldForQuestion,
   matchGuidedReply,
@@ -49,9 +52,18 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
     selectedNode: null,
     atlasOpen: false,
     running: false,
+    runEventStart: 0,
     error: null,
   });
   const [draft, setDraft] = useState("");
+  const reduce = useReducedMotion();
+  const runEvents = state.events.slice(state.runEventStart);
+  const presence = useAgentPresence({
+    running: state.running,
+    events: runEvents,
+    activeNode: state.activeNode,
+    reduce,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +103,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
     setState((current) => ({
       ...current,
       running: true,
+      runEventStart: current.events.length,
       error: null,
       messages: userText
         ? [...current.messages, { id: crypto.randomUUID(), role: "user", content: userText }]
@@ -143,13 +156,28 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
         });
       }
     });
-    setState((current) => ({
-      ...current,
-      running: false,
-      messages: current.messages.map((message) =>
-        message.id === streamingId ? { ...message, id: crypto.randomUUID() } : message,
-      ),
-    }));
+    setState((current) => {
+      const process = buildAgentProcess(current.events.slice(current.runEventStart));
+      let attached = false;
+      const messages = current.messages.map((message) => {
+        if (message.id !== streamingId) return message;
+        attached = true;
+        return {
+          ...message,
+          id: crypto.randomUUID(),
+          process: process.steps.length ? process : message.process,
+        };
+      });
+      if (!attached && process.steps.length) {
+        messages.push({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: process.steps.at(-1)?.caption ?? "Planner finished this pass.",
+          process,
+        });
+      }
+      return { ...current, running: false, messages };
+    });
   }
 
   function startRun(body: Record<string, unknown>, userText?: string) {
@@ -176,6 +204,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
               events={state.events}
               activeNode={state.activeNode}
               running={state.running}
+              progressLabel={presence.label}
               surface="desktop"
               onInspect={() => setState((current) => ({ ...current, atlasOpen: true }))}
             />
@@ -209,6 +238,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
             events={state.events}
             activeNode={state.activeNode}
             running={state.running}
+            progressLabel={presence.label}
             surface="mobile"
             onInspect={() => setState((current) => ({ ...current, atlasOpen: true }))}
           />
@@ -234,8 +264,10 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
           messages={state.messages}
           tripState={state.tripState}
           events={state.events}
+          runEvents={runEvents}
           activeNode={state.activeNode}
           running={state.running}
+          presence={presence}
           draft={draft}
           onDraftChange={setDraft}
           onStarter={(starterId) => startRun({ kind: "starter", starterId }, STARTER_COPY[starterId].label)}
@@ -251,6 +283,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
               setState((current) => ({
                 ...current,
                 running: true,
+                runEventStart: current.events.length,
                 error: null,
                 messages: [
                   ...current.messages,
