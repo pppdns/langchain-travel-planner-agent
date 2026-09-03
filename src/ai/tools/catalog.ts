@@ -18,7 +18,14 @@ export type ToolName = (typeof TOOL_NAMES)[number];
 
 export const NODE_TOOL_ALLOWLIST: Record<string, ToolName[]> = {
   gather_preferences: ["search_memories", "read_trip_state", "write_memory"],
-  route_supervisor: ["read_trip_state"],
+  route_supervisor: [
+    "read_trip_state",
+    "get_weather",
+    "search_travel_knowledge",
+    "lookup_destination_profile",
+    "search_memories",
+    "convert_currency",
+  ],
   discover_destinations: [
     "lookup_destination_profile",
     "search_travel_knowledge",

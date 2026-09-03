@@ -26,6 +26,7 @@ export const paceSchema = z.enum(["relaxed", "balanced", "packed"]);
 export const fitLabelSchema = z.enum(["strong", "good", "possible"]);
 export const interruptTypeSchema = z.enum(["choose_destination", "approve_tradeoff"]);
 export const modelTierSchema = z.enum(["fast", "standard", "reasoning", "vision", "embedding"]);
+export const lastTurnKindSchema = z.enum(["answer", "plan", "interrupt", "gather"]);
 
 export const travelersSchema = z.object({
   adults: z.number().int().min(1).max(12).default(2),
@@ -136,6 +137,7 @@ export const tripStateSchema = z.object({
   resolvedInterruptIds: z.array(z.string()).default([]),
   offScopeRedirects: z.number().int().min(0).default(0),
   publicSummary: z.string().optional(),
+  lastTurnKind: lastTurnKindSchema.optional(),
 });
 
 export type TripState = z.infer<typeof tripStateSchema>;
@@ -146,6 +148,7 @@ export type ItineraryStopKind = z.infer<typeof itineraryStopKindSchema>;
 export type PendingInterrupt = z.infer<typeof pendingInterruptSchema>;
 export type PlanningStage = z.infer<typeof planningStageSchema>;
 export type ModelTier = z.infer<typeof modelTierSchema>;
+export type LastTurnKind = z.infer<typeof lastTurnKindSchema>;
 
 export const emptyTripState = (): TripState => tripStateSchema.parse({});
 
@@ -173,6 +176,7 @@ export const publicTripStateSchema = tripStateSchema.pick({
   rememberedPreferences: true,
   resolvedInterruptIds: true,
   publicSummary: true,
+  lastTurnKind: true,
 });
 
 export type PublicTripState = z.infer<typeof publicTripStateSchema>;

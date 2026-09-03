@@ -60,8 +60,16 @@ export const GRAPH_NODES: readonly GraphNodeSpec[] = [
     safeCaption: "Choosing the next planning stage",
     kind: "route",
     inspector: {
-      purpose: "Route between discovery, local research, and planning.",
-      typicalTools: ["read_trip_state"],
+      purpose:
+        "ReAct turn: answer on-scope questions with tools, or route into discovery, research, planning, or presentation.",
+      typicalTools: [
+        "read_trip_state",
+        "get_weather",
+        "search_travel_knowledge",
+        "lookup_destination_profile",
+        "search_memories",
+        "convert_currency",
+      ],
     },
     position: { x: 220, y: 240 },
   },

@@ -4,7 +4,7 @@ import type { PublicEvent } from "@/src/ai/stream/public-events";
 const BEATS: Record<GraphNodeId, string[]> = {
   scope_guard: ["Checking the request", "Thinking"],
   gather_preferences: ["Reading your note", "Thinking"],
-  route_supervisor: ["Choosing the next step"],
+  route_supervisor: ["Reading the question", "Checking weather", "Choosing the next step"],
   discover_destinations: ["Searching destination knowledge", "Checking weather", "Comparing coastal fits"],
   await_destination_choice: ["Preparing choices"],
   research_local: ["Loading weather forecast", "Reading neighborhoods", "Summarizing the stay"],

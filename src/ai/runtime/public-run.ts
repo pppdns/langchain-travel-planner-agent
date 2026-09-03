@@ -155,8 +155,20 @@ export async function runTripGraph(input: {
   const usage = usageFor(events);
   if (usage) events.push(usage);
 
+  const userText =
+    input.request.kind === "message"
+      ? input.request.text
+      : input.request.kind === "chip"
+        ? input.request.value
+        : "";
   const livePresentation = input.liveModels
-    ? buildLivePresentation({ trip: tripState, assistantText, interrupted })
+    ? buildLivePresentation({
+        trip: tripState,
+        assistantText,
+        interrupted,
+        userText,
+        turnKind: tripState.lastTurnKind,
+      })
     : null;
 
   return { events, tripState, assistantText, interrupted, livePresentation };
@@ -168,7 +180,9 @@ function usageFor(events: PublicEvent[]) {
     .map((event) => event.node);
   if (!nodes.length) return null;
   let modelTier: ModelTier = "fast";
-  if (nodes.includes("discover_destinations") || nodes.includes("research_local")) modelTier = "standard";
+  if (nodes.includes("discover_destinations") || nodes.includes("research_local") || nodes.includes("route_supervisor")) {
+    modelTier = "standard";
+  }
   if (nodes.includes("critique_itinerary")) modelTier = "reasoning";
   return sanitizePublicEvent({
     type: "usage",

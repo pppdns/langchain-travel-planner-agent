@@ -250,7 +250,12 @@ export function Conversation({
   const showDestinations =
     turnReady && interrupt?.interruptType === "choose_destination" && tripState.candidateDestinations.length > 0;
   const showTradeoff = turnReady && interrupt?.interruptType === "approve_tradeoff";
-  const showFolio = turnReady && Boolean(tripState.itinerary) && !showDestinations && !showTradeoff;
+  const showFolio =
+    turnReady &&
+    Boolean(tripState.itinerary) &&
+    !showDestinations &&
+    !showTradeoff &&
+    (tripState.lastTurnKind === "plan" || tripState.lastTurnKind == null);
   const hasInstrument = showChoices || showDestinations || showTradeoff || showFolio;
 
   useEffect(() => {

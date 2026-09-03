@@ -188,6 +188,7 @@ describe("revisions and usage", () => {
     expect(detectRevision("Cut optional transfers and keep the stay in one area.")).toBe("fewer-transfers");
     expect(detectRevision("Suggest another destination that still fits.")).toBe("another-destination");
     expect(detectRevision("hello")).toBeNull();
+    expect(detectRevision("what is the weather like in there?")).toBeNull();
   });
 
   it("emits a usage event after a known-destination run", async () => {

@@ -1,19 +1,15 @@
 import { Annotation, END, MemorySaver, START, StateGraph, interrupt } from "@langchain/langgraph";
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
-import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
+import type { BaseMessage } from "@langchain/core/messages";
 import { buildItinerary } from "@/src/ai/graph/itinerary";
 import { evidenceFor, rankDestinations } from "@/src/ai/graph/rank";
-import {
-  applyRevision,
-  detectRevision,
-  rememberedFromTrip,
-  resetForRediscovery,
-  revisionAssistantText,
-} from "@/src/ai/graph/revisions";
+import { rememberedFromTrip } from "@/src/ai/graph/revisions";
+import { superviseTurn } from "@/src/ai/graph/supervise";
 import {
   emptyTripState,
   mergeTripState,
   missingUsefulFields,
+  tripTypeSchema,
   type PendingInterrupt,
   type TripState,
 } from "@/src/ai/graph/state";
@@ -57,6 +53,10 @@ export const GraphAnnotation = Annotation.Root({
     default: () => "message",
   }),
   assistantText: Annotation<string>({
+    reducer: (_left, right) => right ?? "",
+    default: () => "",
+  }),
+  supervisorRoute: Annotation<string>({
     reducer: (_left, right) => right ?? "",
     default: () => "",
   }),
@@ -137,20 +137,6 @@ async function gatherPreferences(state: GraphState, config?: LangGraphRunnableCo
     }
     trip = applyChip(trip, field, value ?? "");
   } else if (state.inputText) {
-    const revision = trip.itinerary ? detectRevision(state.inputText) : null;
-    if (revision === "another-destination") {
-      return {
-        trip: resetForRediscovery(trip),
-        assistantText: revisionAssistantText(revision),
-      };
-    }
-    if (revision) {
-      return {
-        trip: applyRevision(trip, revision),
-        assistantText: revisionAssistantText(revision),
-      };
-    }
-
     const text = state.inputText.toLowerCase();
     const matched = matchCatalogDestination(state.inputText);
     if (matched && trip.destinationStatus === "unknown") {
@@ -162,7 +148,19 @@ async function gatherPreferences(state: GraphState, config?: LangGraphRunnableCo
     }
     if (text.includes("beach")) trip = mergeTripState(trip, { tripType: "beach", preferences: [...trip.preferences, "beach"] });
     if (text.includes("family")) trip = mergeTripState(trip, { tripType: "family" });
-    if (text.includes("unhurried") || text.includes("relax")) trip = mergeTripState(trip, { pace: "relaxed" });
+    const typed = tripTypeSchema.safeParse(state.inputText.trim().toLowerCase());
+    if (typed.success) trip = mergeTripState(trip, { tripType: typed.data });
+    const nightMatch = state.inputText.match(/\b(\d{1,2})\s*(?:nights?|days?)\b/i);
+    if (nightMatch && !trip.dates.durationNights) {
+      trip = mergeTripState(trip, {
+        dates: { ...trip.dates, durationNights: Number(nightMatch[1]) },
+      });
+    } else if (!trip.dates.durationNights && /^\d{1,2}$/.test(state.inputText.trim())) {
+      const nights = Number.parseInt(state.inputText.trim(), 10);
+      if (nights >= 1 && nights <= 21) {
+        trip = mergeTripState(trip, { dates: { ...trip.dates, durationNights: nights } });
+      }
+    }
     if (trip.visionObservations[0]?.atmosphere && !trip.preferences.includes("atmosphere from photo")) {
       trip = mergeTripState(trip, {
         preferences: [...trip.preferences, "atmosphere from photo"],
@@ -175,47 +173,39 @@ async function gatherPreferences(state: GraphState, config?: LangGraphRunnableCo
   }
 
   const missing = missingUsefulFields(trip);
-  if (missing.includes("tripType")) {
-    return {
-      trip: mergeTripState(trip, {
-        currentPlanningStage: "gathering",
+  const gatheringQuestion = missing.includes("tripType")
+    ? {
         lastQuestion: "What kind of trip are you trying to make?",
         guidedOptions: ["beach", "city", "family", "mix"],
-      }),
-      assistantText: "What kind of trip are you trying to make?",
-    };
-  }
-  if (missing.includes("dates")) {
-    return {
-      trip: mergeTripState(trip, {
-        currentPlanningStage: "gathering",
-        lastQuestion: "How many nights should I plan for?",
-        guidedOptions: ["4", "5", "6", "7"],
-      }),
-      assistantText: "How many nights should I plan for?",
-    };
-  }
+      }
+    : missing.includes("dates")
+      ? {
+          lastQuestion: "How many nights should I plan for?",
+          guidedOptions: ["4", "5", "6", "7"],
+        }
+      : null;
 
+  const alreadyPlanned =
+    Boolean(trip.itinerary) &&
+    (trip.currentPlanningStage === "complete" || trip.currentPlanningStage === "presenting");
   return {
     trip: mergeTripState(trip, {
-      currentPlanningStage: trip.destinationStatus === "known" ? "researching" : "discovering",
-      lastQuestion: undefined,
-      guidedOptions: [],
+      currentPlanningStage: gatheringQuestion
+        ? "gathering"
+        : alreadyPlanned
+          ? trip.currentPlanningStage
+          : trip.destinationStatus === "known"
+            ? "researching"
+            : "discovering",
+      lastTurnKind: gatheringQuestion ? "gather" : trip.lastTurnKind,
+      lastQuestion: gatheringQuestion?.lastQuestion,
+      guidedOptions: gatheringQuestion?.guidedOptions ?? [],
     }),
   };
 }
 
-async function routeSupervisor(state: GraphState) {
-  return {
-    trip: mergeTripState(state.trip, {
-      currentPlanningStage:
-        state.trip.destinationStatus === "known"
-          ? "researching"
-          : state.trip.candidateDestinations.length
-            ? "awaiting_destination"
-            : "discovering",
-    }),
-  };
+async function routeSupervisor(state: GraphState, config?: LangGraphRunnableConfig) {
+  return superviseTurn(state, config);
 }
 
 async function discoverDestinations(state: GraphState, config?: LangGraphRunnableConfig) {
@@ -264,6 +254,7 @@ async function discoverDestinations(state: GraphState, config?: LangGraphRunnabl
       destinationStatus: "candidates",
       candidateDestinations: candidates,
       currentPlanningStage: "awaiting_destination",
+      lastTurnKind: "interrupt",
       pendingInterrupt: interruptPayload,
       latestEvidence: [...knowledge.items, ...candidates.flatMap((item) => item.evidence)].slice(0, 6),
     }),
@@ -389,6 +380,7 @@ async function critiqueItinerary(state: GraphState) {
       trip: mergeTripState(state.trip, {
         pendingInterrupt: pending,
         currentPlanningStage: "awaiting_tradeoff",
+        lastTurnKind: "interrupt",
       }),
     };
   }
@@ -420,10 +412,19 @@ async function presentPlan(state: GraphState) {
   if (/only plan trips|Forgot that preference/i.test(state.assistantText)) {
     return { assistantText: state.assistantText };
   }
+  if (state.trip.currentPlanningStage === "gathering" || state.trip.lastTurnKind === "gather") {
+    return {
+      assistantText: state.assistantText,
+      trip: mergeTripState(state.trip, { lastTurnKind: "gather" }),
+    };
+  }
   const itinerary = state.trip.itinerary;
-  const preface = /slowed the days|cut optional transfers|search again/i.test(state.assistantText)
-    ? `${state.assistantText} `
-    : "";
+  const preface =
+    /slowed the days|cut optional transfers|search again|asked about|weather|forecast/i.test(
+      state.assistantText,
+    )
+      ? `${state.assistantText} `
+      : "";
   const text = itinerary
     ? `${preface}Here is a ${itinerary.days.length}-day plan for ${itinerary.destinationName}. Ask for a revision and I will keep the same thread.`
     : preface || "The plan is ready.";
@@ -431,9 +432,9 @@ async function presentPlan(state: GraphState) {
     trip: mergeTripState(state.trip, {
       currentPlanningStage: "complete",
       pendingInterrupt: null,
+      lastTurnKind: "plan",
     }),
     assistantText: text,
-    messages: [new HumanMessage(state.inputText || "continue")],
   };
 }
 
@@ -442,17 +443,30 @@ function afterScope(state: GraphState) {
   return "gather_preferences";
 }
 
-function afterGather(state: GraphState) {
-  if (state.trip.currentPlanningStage === "gathering") return "present_plan";
-  if (state.trip.currentPlanningStage === "presenting" && state.trip.itinerary) return "present_plan";
-  if (state.trip.currentPlanningStage === "complete") return "present_plan";
+export function afterGather(state: GraphState) {
+  if (/Forgot that preference/i.test(state.assistantText)) return "present_plan";
   return "route_supervisor";
 }
 
-function afterRoute(state: GraphState) {
-  if (state.trip.destinationStatus === "known") return "research_local";
-  if (state.trip.pendingInterrupt?.interruptType === "choose_destination") return "await_destination_choice";
-  return "discover_destinations";
+export function afterRoute(state: GraphState) {
+  switch (state.supervisorRoute) {
+    case "answer":
+      return "end";
+    case "present":
+      return "present_plan";
+    case "plan":
+      return "plan_itinerary";
+    case "research":
+      return "research_local";
+    case "discover":
+      return "discover_destinations";
+    case "await_destination":
+      return "await_destination_choice";
+    default:
+      if (state.trip.destinationStatus === "known") return "research_local";
+      if (state.trip.pendingInterrupt?.interruptType === "choose_destination") return "await_destination_choice";
+      return "discover_destinations";
+  }
 }
 
 function afterCritique(state: GraphState) {
@@ -485,6 +499,9 @@ export function compileTripGraph(checkpointer = new MemorySaver()) {
       discover_destinations: "discover_destinations",
       await_destination_choice: "await_destination_choice",
       research_local: "research_local",
+      plan_itinerary: "plan_itinerary",
+      present_plan: "present_plan",
+      end: END,
     })
     .addEdge("discover_destinations", "await_destination_choice")
     .addEdge("await_destination_choice", "research_local")

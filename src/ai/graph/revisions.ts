@@ -3,9 +3,18 @@ import { emptyTripState, mergeTripState, type TripState } from "@/src/ai/graph/s
 
 export type RevisionKind = "slower" | "fewer-transfers" | "another-destination";
 
+function looksLikeQuestion(text: string) {
+  const trimmed = text.trim();
+  return (
+    /\?\s*$/.test(trimmed) ||
+    /^(what|what's|whats|how|is|are|does|do|can|could|where|when|why|which)\b/.test(trimmed)
+  );
+}
+
 export function detectRevision(text: string): RevisionKind | null {
   const haystack = text.toLowerCase();
   if (/another destination|different place|somewhere else/.test(haystack)) return "another-destination";
+  if (looksLikeQuestion(haystack)) return null;
   if (/slower|relax|unhurried|shorter days/.test(haystack)) return "slower";
   if (/fewer transfer|one area|cut optional/.test(haystack)) return "fewer-transfers";
   return null;

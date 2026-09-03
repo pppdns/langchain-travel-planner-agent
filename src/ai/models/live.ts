@@ -1,7 +1,14 @@
 import { z } from "zod";
 import { DESTINATIONS, getDestination } from "@/data/travel/catalog";
 import { generateStructured, generatePlainText, streamPlainText, routeModelTier } from "@/src/ai/models/factory";
-import { mergeTripState, paceSchema, tripTypeSchema, type PublicTripState, type TripState } from "@/src/ai/graph/state";
+import {
+  mergeTripState,
+  paceSchema,
+  tripTypeSchema,
+  type LastTurnKind,
+  type PublicTripState,
+  type TripState,
+} from "@/src/ai/graph/state";
 
 const AMBIGUOUS_DESTINATION_TOKENS = new Set(["nice", "split"]);
 
@@ -112,11 +119,15 @@ export function buildLivePresentation(params: {
   trip: PublicTripState;
   assistantText: string;
   interrupted: boolean;
+  userText?: string;
+  turnKind?: LastTurnKind;
 }): LivePresentation | null {
   if (!params.assistantText) return null;
   if (/only plan trips/i.test(params.assistantText)) return null;
+  if (params.turnKind === "answer" || params.turnKind === "gather") return null;
 
   const facts = {
+    userAsk: params.userText,
     destination: params.trip.destinationName ?? params.trip.destinationSlug,
     stage: params.trip.currentPlanningStage,
     tripType: params.trip.tripType,
