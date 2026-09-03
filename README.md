@@ -1,14 +1,12 @@
 # Route State
 
-A public, no-signup travel planner used as an AI engineering showcase. The product is a trip. The argument is that **LangGraph owns durable orchestration** while the UI only consumes an allowlisted public event stream.
+A public, no-signup travel planner demo that showcases agentic features: a LangGraph supervisor, tool-using turns, human interrupts, and an allowlisted event stream. The product is a trip. The argument is that **LangGraph owns durable orchestration** while the UI only consumes public events.
 
 Open `/`, start **Warm family beach in Europe**, choose a destination, and watch the same interrupted thread resume into an itinerary. After a plan exists, ask `what is the weather like in there?` The supervisor answers with tools instead of re-presenting the folio. For a second interrupt, start **City break, food and culture, under 1500 EUR**, pick a place, then choose whether to protect the budget or the packed pace.
 
-This is a hiring demo, not authoritative travel advice. The default runtime is deterministic so CI and the public site stay alive. Set `ROUTE_STATE_RUNTIME=live` with `OPENAI_API_KEY` or `AI_GATEWAY_API_KEY` to call models, stream tokens, query pgvector, and fetch Open-Meteo weather.
+This is a demo app, not authoritative travel advice. The default runtime is deterministic so CI and the public site stay alive. Set `ROUTE_STATE_RUNTIME=live` with `OPENAI_API_KEY` or `AI_GATEWAY_API_KEY` to call models, stream tokens, query pgvector, and fetch Open-Meteo weather.
 
-Built by Denes Papp.
-
-## Recruiter path
+## Try it
 
 1. Open `/`
 2. Start the family-beach starter and inspect a graph node
@@ -21,7 +19,7 @@ LangGraph owns state, routing, interrupts, and checkpoints. The Next.js trip API
 
 ```mermaid
 flowchart LR
-  Recruiter --> Workspace
+  Visitor --> Workspace
   Workspace --> TripAPI
   TripAPI --> StreamBridge
   StreamBridge --> LangGraph
@@ -136,7 +134,7 @@ Prompts, secrets, checkpoint blobs, and retrieved chunk bodies never stream. Mod
 | Live | `ROUTE_STATE_RUNTIME=live` plus a key | Supervisor tool loop, token stream, pgvector, Open-Meteo |
 | Recorded | Budget exhausted, `REPLAY_ONLY`, or `/replay/...` | Golden fixtures for the 90-second path |
 
-Atomic spend reservation (`DAILY_BUDGET_CENTS`) keeps the public demo from dying mid-recruiter session. Live models stay optional: `configurable.liveModels` on the graph, forced off under `VITEST=true` or `PLAYWRIGHT=1`.
+Atomic spend reservation (`DAILY_BUDGET_CENTS`) keeps the public demo from dying mid-session. Live models stay optional: `configurable.liveModels` on the graph, forced off under `VITEST=true` or `PLAYWRIGHT=1`.
 
 ## Stack
 
@@ -195,8 +193,8 @@ SUPABASE_SESSION_POOLER_DATABASE_URL=...
 
 ## Docs
 
-- [`docs/architecture.md`](docs/architecture.md) interview map
+- [`docs/architecture.md`](docs/architecture.md) system map
 - [`docs/security.md`](docs/security.md) RLS, BotID, public-event rules
 - [`docs/evaluation.md`](docs/evaluation.md) what CI proves
 - [`docs/runbook.md`](docs/runbook.md) flags, live setup, rollback
-- `/case-study` in the running app: short hiring argument
+- `/case-study` in the running app: short architecture notes
