@@ -336,7 +336,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
                 return;
               }
             }
-            if (state.tripState.currentPlanningStage === "gathering" && state.tripState.guidedOptions.length) {
+            if (!interrupt && state.tripState.guidedOptions.length) {
               const field = chipFieldForQuestion(state.tripState.lastQuestion);
               const matched = matchGuidedReply(text, state.tripState.guidedOptions, field);
               if (matched) {

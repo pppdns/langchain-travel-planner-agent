@@ -65,8 +65,8 @@ const SUPERVISOR_SYSTEM = [
   "Resolve words like there or it from the current trip destination.",
   "Use tool results only. Do not invent weather, prices, or bookings.",
   "Do not dump the full itinerary unless they asked for the plan or a revision.",
-  "If the trip is not planned yet, keep planning after you answer: ask the next missing field, or route to research when the destination is known, or discover when it is not.",
-  "If the user only answered an intake field such as city or 4, do not end the turn. Continue planning.",
+  "If the trip is not planned yet, keep planning after you answer: ask the next missing field, offer a visible next step, or route to research when the destination is known, or discover when it is not.",
+  "Never leave an unfinished plan without a next question or a choice. If the user only answered an intake field such as city or 4, do not end the turn.",
   "No em-dashes. No fake match percentages.",
 ].join(" ");
 
@@ -98,6 +98,10 @@ function resolveSlug(trip: TripState, text = "") {
 }
 
 export function nextSteer(trip: TripState): { question: string; options: string[] } | null {
+  if (trip.itinerary) return null;
+  if (trip.pendingInterrupt?.interruptType === "choose_destination" && trip.destinationStatus !== "known") {
+    return null;
+  }
   if (!trip.tripType) {
     return {
       question: "What kind of trip are you trying to make?",
@@ -110,7 +114,16 @@ export function nextSteer(trip: TripState): { question: string; options: string[
       options: ["4", "5", "6", "7"],
     };
   }
-  return null;
+  if (trip.destinationStatus !== "known") {
+    return {
+      question: "I can search for places that fit.",
+      options: ["Find destinations"],
+    };
+  }
+  return {
+    question: "I can draft the days whenever you want.",
+    options: ["Draft the days"],
+  };
 }
 
 export function nextPlanningRoute(trip: TripState): Exclude<SupervisorRoute, "answer"> | null {
@@ -129,6 +142,46 @@ function applySteer(trip: TripState, steer: { question: string; options: string[
     currentPlanningStage: "gathering",
     lastQuestion: steer.question,
     guidedOptions: steer.options,
+  });
+}
+
+function isContinueIntent(state: SupervisorInput) {
+  const text = state.inputText.toLowerCase();
+  if (state.inputKind === "chip" && text.startsWith("continue:")) return true;
+  return /draft the days|find destinations|continue planning/.test(text);
+}
+
+function withPlanningSteer(params: {
+  trip: TripState;
+  text: string;
+  assistantText: string;
+  evidence?: EvidenceRef[];
+}): SupervisorResult {
+  const { trip, text, assistantText, evidence } = params;
+  if (trip.itinerary) {
+    return finishAnswer({ trip, text, assistantText, evidence });
+  }
+
+  if (trip.pendingInterrupt?.interruptType === "choose_destination" && trip.destinationStatus !== "known") {
+    const kept = assistantText.includes("Pick a destination")
+      ? assistantText
+      : `${assistantText} Pick a destination to continue.`;
+    return finishAnswer({
+      trip: mergeTripState(trip, { currentPlanningStage: "awaiting_destination" }),
+      text,
+      assistantText: kept,
+      evidence,
+    });
+  }
+
+  const steer = nextSteer(trip);
+  const reply =
+    steer && !assistantText.includes(steer.question) ? `${assistantText} ${steer.question}` : assistantText;
+  return finishAnswer({
+    trip: applySteer(trip, steer),
+    text,
+    assistantText: reply,
+    evidence,
   });
 }
 
@@ -312,7 +365,7 @@ async function runLiveSupervisor(
       tier: routeModelTier("supervise"),
       schema: supervisorRouteSchema,
       system:
-        "Choose the next Route State graph move. answer ends the turn. discover/research/plan/present hand off to specialist nodes. await_destination only if a destination choice is already pending. Use only the supplied facts.",
+        "Choose the next Route State graph move. If the user asked a question and there is no itinerary yet, choose answer. Do not jump to discover, research, or plan just because a destination is known. answer ends the turn. discover/research/plan/present hand off to specialist nodes. await_destination only if a destination choice is already pending and they are picking a place, not asking a question. Use only the supplied facts.",
       prompt: [
         `User message: ${state.inputText}`,
         `Trip: ${tripBrief(state.trip)}`,
@@ -354,7 +407,16 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
   const trip = state.trip;
   await readPublicTrip(trip);
 
-  if (trip.pendingInterrupt?.interruptType === "choose_destination" && trip.destinationStatus !== "known") {
+  if (isContinueIntent(state)) {
+    const advance = nextPlanningRoute(trip) ?? ( /find destinations/.test(haystack) ? "discover" : "research");
+    return finishRoute({ trip, text, route: advance });
+  }
+
+  if (
+    trip.pendingInterrupt?.interruptType === "choose_destination" &&
+    trip.destinationStatus !== "known" &&
+    !(state.inputKind === "message" && looksLikeUserQuestion(text))
+  ) {
     return finishRoute({ trip, text, route: "await_destination" });
   }
 
@@ -364,13 +426,10 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
       assertToolAllowed("route_supervisor", "get_weather");
       const weather = await getWeather.execute({ slug, live });
       const name = getDestination(slug)?.name ?? trip.destinationName ?? slug;
-      const steer = nextSteer(trip);
-      return finishAnswer({
-        trip: applySteer(trip, steer),
+      return withPlanningSteer({
+        trip,
         text,
-        assistantText: [`You asked about the weather in ${name}. ${weather.summary}`, steer?.question]
-          .filter(Boolean)
-          .join(" "),
+        assistantText: `You asked about the weather in ${name}. ${weather.summary}`,
         evidence: [weatherEvidence(slug)],
       });
     }
@@ -402,7 +461,7 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
       const detail = titles.length
         ? titles.join("; ")
         : trip.itinerary?.days[0]?.area ?? placeName(trip);
-      return finishAnswer({
+      return withPlanningSteer({
         trip,
         text,
         assistantText: `You asked about neighborhoods in ${placeName(trip)}. ${detail}.`,
@@ -439,19 +498,11 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
   const advance = nextPlanningRoute(trip);
   const steer = nextSteer(trip);
 
-  if (asked && steer) {
-    return finishAnswer({
-      trip: applySteer(trip, steer),
-      text,
-      assistantText: `You asked about ${placeName(trip)}. ${steer.question}`,
-    });
-  }
-
-  if (asked && advance) {
-    return finishAnswer({
+  if (asked) {
+    return withPlanningSteer({
       trip,
       text,
-      assistantText: `You asked about ${placeName(trip)}. I have enough to draft the days when you want the plan.`,
+      assistantText: `You asked about ${placeName(trip)}.`,
     });
   }
 
@@ -470,11 +521,28 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
   return finishRoute({ trip, text, route: "discover" });
 }
 
-function finalizeSupervisor(state: SupervisorInput, result: SupervisorResult): SupervisorResult {
+export function finalizeSupervisor(state: SupervisorInput, result: SupervisorResult): SupervisorResult {
   const asked = state.inputKind === "message" && looksLikeUserQuestion(state.inputText);
   const advance = nextPlanningRoute(result.trip);
-  const steer = nextSteer(result.trip);
   const evidence = result.trip.latestEvidence;
+
+  if (isContinueIntent(state) && advance) {
+    return finishRoute({
+      trip: result.trip,
+      text: state.inputText,
+      route: advance,
+      evidence,
+    });
+  }
+
+  if (asked && !result.trip.itinerary) {
+    return withPlanningSteer({
+      trip: result.trip,
+      text: state.inputText,
+      assistantText: result.assistantText?.trim() || `You asked about ${placeName(result.trip)}.`,
+      evidence,
+    });
+  }
 
   if (result.supervisorRoute === "answer" && !asked && advance) {
     return finishRoute({
@@ -485,25 +553,11 @@ function finalizeSupervisor(state: SupervisorInput, result: SupervisorResult): S
     });
   }
 
-  if (result.supervisorRoute === "answer" && asked && advance && !steer && result.assistantText) {
-    return finishAnswer({
+  if (result.supervisorRoute === "answer" && !result.trip.itinerary && result.assistantText) {
+    return withPlanningSteer({
       trip: result.trip,
       text: state.inputText,
-      assistantText: /draft the days/i.test(result.assistantText)
-        ? result.assistantText
-        : `${result.assistantText} I have enough to draft the days when you want the plan.`,
-      evidence,
-    });
-  }
-
-  if (result.supervisorRoute === "answer" && steer && !result.trip.itinerary) {
-    const reply = result.assistantText?.includes(steer.question)
-      ? result.assistantText
-      : [result.assistantText, steer.question].filter(Boolean).join(" ");
-    return finishAnswer({
-      trip: applySteer(result.trip, steer),
-      text: state.inputText,
-      assistantText: reply || steer.question,
+      assistantText: result.assistantText,
       evidence,
     });
   }

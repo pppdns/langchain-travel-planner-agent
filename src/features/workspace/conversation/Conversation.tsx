@@ -245,8 +245,7 @@ export function Conversation({
   const shownMessages = messages.filter((message) => message.role === "user" || message.content);
   const streamingId = last?.role === "assistant" && (running || last.id === "streaming") ? last.id : null;
   const turnReady = presence.reveal;
-  const showChoices =
-    turnReady && !interrupt && tripState.currentPlanningStage === "gathering" && tripState.guidedOptions.length > 0;
+  const showChoices = turnReady && !interrupt && tripState.guidedOptions.length > 0;
   const showDestinations =
     turnReady && interrupt?.interruptType === "choose_destination" && tripState.candidateDestinations.length > 0;
   const showTradeoff = turnReady && interrupt?.interruptType === "approve_tradeoff";

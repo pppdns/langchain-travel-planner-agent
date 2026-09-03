@@ -78,6 +78,7 @@ function applyChip(state: TripState, field: string, value: string): TripState {
       budget: { ...state.budget, amount: Number.parseInt(value, 10) || 1500 },
     });
   }
+  if (field === "continue") return state;
   return mergeTripState(state, { preferences: [...state.preferences, value] });
 }
 
@@ -147,6 +148,7 @@ async function gatherPreferences(state: GraphState, config?: LangGraphRunnableCo
       });
     }
     if (text.includes("beach")) trip = mergeTripState(trip, { tripType: "beach", preferences: [...trip.preferences, "beach"] });
+    if (/\bcity (?:trip|break)\b/.test(text)) trip = mergeTripState(trip, { tripType: "city" });
     if (text.includes("family")) trip = mergeTripState(trip, { tripType: "family" });
     const typed = tripTypeSchema.safeParse(state.inputText.trim().toLowerCase());
     if (typed.success) trip = mergeTripState(trip, { tripType: typed.data });

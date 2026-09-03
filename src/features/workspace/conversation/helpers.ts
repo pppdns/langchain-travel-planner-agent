@@ -9,6 +9,9 @@ export function isOffScopeQuestion(question?: string) {
 
 export function chipFieldForQuestion(question?: string): string {
   const haystack = question?.toLowerCase() ?? "";
+  if (haystack.includes("draft") || haystack.includes("search for places") || haystack.includes("find destinations")) {
+    return "continue";
+  }
   if (haystack.includes("night")) return "duration";
   if (haystack.includes("pace")) return "pace";
   if (haystack.includes("budget")) return "budget";

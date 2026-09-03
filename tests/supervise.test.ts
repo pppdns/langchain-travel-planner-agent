@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { Command } from "@langchain/langgraph";
 import { afterGather, compileTripGraph } from "@/src/ai/graph/compile";
-import { emptyTripState } from "@/src/ai/graph/state";
+import { emptyTripState, tripStateSchema } from "@/src/ai/graph/state";
 import { applyStarterSeed } from "@/src/ai/contracts/starters";
 import { detectRevision } from "@/src/ai/graph/revisions";
+import { finalizeSupervisor, nextSteer } from "@/src/ai/graph/supervise";
 import { buildLivePresentation } from "@/src/ai/models/live";
+import { runTripGraph } from "@/src/ai/runtime/public-run";
 import { assertToolAllowed } from "@/src/ai/tools/catalog";
+import { chipFieldForQuestion } from "@/src/features/workspace/conversation/helpers";
 
 function emptyGraphState(overrides: {
   trip?: ReturnType<typeof emptyTripState>;
@@ -155,6 +158,132 @@ describe("supervisor routing", () => {
     expect(planned.values.trip.itinerary?.destinationSlug).toBe("budapest");
     expect(planned.values.trip.lastTurnKind).toBe("plan");
     expect(planned.values.assistantText).toMatch(/4-day plan for Budapest/i);
+  });
+
+  it("keeps a mid-planning question from jumping to research", () => {
+    const trip = {
+      ...emptyTripState(),
+      destinationStatus: "known" as const,
+      destinationSlug: "budapest",
+      destinationName: "Budapest",
+      tripType: "city" as const,
+    };
+    const steered = finalizeSupervisor(
+      {
+        messages: [],
+        trip,
+        inputText: "what's the weather like in April?",
+        inputKind: "message",
+        assistantText: "",
+      },
+      {
+        trip,
+        assistantText: "April in Budapest is mild.",
+        messages: [],
+        supervisorRoute: "research",
+      },
+    );
+    expect(steered.supervisorRoute).toBe("answer");
+    expect(steered.trip.guidedOptions).toEqual(["4", "5", "6", "7"]);
+    expect(steered.assistantText).toMatch(/april/i);
+    expect(steered.assistantText).toMatch(/nights/i);
+  });
+
+  it("leaves a draft-the-days choice after a question when planning can continue", async () => {
+    const graph = compileTripGraph();
+    const thread = { configurable: { thread_id: "budapest-weather-then-draft" } };
+    const ready = {
+      ...emptyTripState(),
+      destinationStatus: "known" as const,
+      destinationSlug: "budapest",
+      destinationName: "Budapest",
+      tripType: "city" as const,
+      dates: { flexible: true, durationNights: 4 },
+    };
+    expect(nextSteer(ready)?.options).toEqual(["Draft the days"]);
+    expect(chipFieldForQuestion("I can draft the days whenever you want.")).toBe("continue");
+
+    await graph.invoke(
+      {
+        inputKind: "message",
+        inputText: "what is the weather in Budapest?",
+        trip: ready,
+      },
+      thread,
+    );
+    const asked = await graph.getState(thread);
+    expect(asked.values.assistantText).toMatch(/weather/i);
+    expect(asked.values.assistantText).toMatch(/draft the days/i);
+    expect(asked.values.trip.guidedOptions).toEqual(["Draft the days"]);
+    expect(asked.values.trip.currentPlanningStage).toBe("gathering");
+
+    await graph.invoke(
+      {
+        inputKind: "chip",
+        inputText: "continue:Draft the days",
+        trip: asked.values.trip,
+      },
+      thread,
+    );
+    const planned = await graph.getState(thread);
+    expect(planned.values.trip.itinerary?.destinationSlug).toBe("budapest");
+    expect(planned.values.trip.lastTurnKind).toBe("plan");
+  });
+
+  it("answers weather during a destination interrupt and keeps the choices", async () => {
+    const graph = compileTripGraph();
+    const thread = { configurable: { thread_id: "faro-weather-during-decide" } };
+    await graph.invoke(
+      {
+        inputKind: "starter",
+        inputText: "family-beach-europe",
+        trip: applyStarterSeed("family-beach-europe"),
+      },
+      thread,
+    );
+    const interrupted = await graph.getState(thread);
+    expect(interrupted.values.trip.pendingInterrupt?.interruptType).toBe("choose_destination");
+
+    const followUp = { configurable: { thread_id: "faro-weather-during-decide-q" } };
+    await graph.invoke(
+      {
+        inputKind: "message",
+        inputText: "what is the weather like in Faro?",
+        trip: interrupted.values.trip,
+      },
+      followUp,
+    );
+    const asked = await graph.getState(followUp);
+    expect(asked.values.assistantText).toMatch(/weather/i);
+    expect(asked.values.assistantText).toMatch(/faro/i);
+    expect(asked.values.assistantText).toMatch(/pick a destination/i);
+    expect(asked.values.trip.pendingInterrupt?.interruptType).toBe("choose_destination");
+    expect(asked.values.trip.currentPlanningStage).toBe("awaiting_destination");
+    expect(asked.values.trip.candidateDestinations.length).toBeGreaterThan(0);
+  });
+
+  it("answers weather on the same interrupted thread without treating it as a destination pick", async () => {
+    const threadId = "faro-weather-same-thread";
+    const first = await runTripGraph({
+      threadId,
+      request: { kind: "starter", starterId: "family-beach-europe", idempotencyKey: "same-thread-a" },
+      existing: applyStarterSeed("family-beach-europe"),
+    });
+    expect(first.interrupted).toBe(true);
+    expect(first.tripState.pendingInterrupt?.interruptType).toBe("choose_destination");
+
+    const asked = await runTripGraph({
+      threadId,
+      request: { kind: "message", text: "what is the weather like in Faro?", idempotencyKey: "same-thread-b" },
+      existing: tripStateSchema.parse(first.tripState),
+    });
+    expect(asked.assistantText).toMatch(/weather/i);
+    expect(asked.assistantText).toMatch(/faro/i);
+    expect(asked.assistantText).toMatch(/pick a destination/i);
+    expect(asked.tripState.destinationSlug).not.toBe("faro");
+    expect(asked.tripState.pendingInterrupt?.interruptType).toBe("choose_destination");
+    expect(asked.tripState.lastTurnKind).toBe("answer");
+    expect(asked.tripState.candidateDestinations.length).toBeGreaterThan(0);
   });
 });
 

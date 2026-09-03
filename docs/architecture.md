@@ -30,7 +30,7 @@ Interview map:
 | How do you keep the demo alive? | `src/ai/runtime/budget.ts` + `src/ai/replay` |
 | How do you authorize tools? | `src/ai/tools/catalog.ts` `NODE_TOOL_ALLOWLIST` |
 | How do you revise a finished plan? | `src/ai/graph/revisions.ts` on the same thread |
-| How do freeform turns stay on the graph? | `src/ai/graph/supervise.ts` ReAct supervisor answers or routes; `lastTurnKind` gates the folio |
+| How do freeform turns stay on the graph? | `src/ai/graph/supervise.ts` ReAct supervisor answers or routes; unfinished questions keep a next choice; `lastTurnKind` gates the folio |
 | How do live models stay optional? | `src/lib/env.ts` `isLiveModelsEnabled` + graph `configurable.liveModels` |
 | How do you stream tokens without leaking prompts? | `src/ai/stream/bridge.ts` `createAssistantStream` over the same NDJSON contract |
 | How does retrieval stay public-safe? | `src/ai/retrieval/hybrid.ts` returns titles only; chunk bodies never stream |
