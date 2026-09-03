@@ -1,6 +1,7 @@
 # Route State
 
 Public graph-first travel planner used as an AI engineering showcase.
+This is a portfolio/demo project, not a commercial travel business. Its goal is to showcase modern agentic AI agent creation experience of an AI engineer in a simple way for recruiters and hiring companies.
 
 ## Tech stack
 

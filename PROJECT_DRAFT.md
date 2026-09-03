@@ -53,8 +53,6 @@ The main portfolio message should be:
 
 "This is a stateful agentic travel planner that guides users through trip discovery and planning using adaptive questions, specialized AI agents, real-world tools, retrieval, persistent memory, structured state and human-in-the-loop decision points."
 
-Do NOT make this feel like a generic ChatGPT clone with a travel system prompt.
-
 The agent architecture should be visibly important to the product.
 
 # PRODUCT CONCEPT
