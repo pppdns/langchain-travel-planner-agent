@@ -129,6 +129,11 @@ export const tripStateSchema = z.object({
   guidedOptions: z.array(z.string()).default([]),
   pendingInterrupt: pendingInterruptSchema.nullable().default(null),
   visionObservations: z.array(visionObservationSchema).default([]),
+  latestEvidence: z.array(evidenceRefSchema).default([]),
+  rememberedPreferences: z
+    .array(z.object({ key: z.string(), value: z.string() }))
+    .default([]),
+  resolvedInterruptIds: z.array(z.string()).default([]),
   offScopeRedirects: z.number().int().min(0).default(0),
   publicSummary: z.string().optional(),
 });
@@ -164,6 +169,9 @@ export const publicTripStateSchema = tripStateSchema.pick({
   guidedOptions: true,
   pendingInterrupt: true,
   visionObservations: true,
+  latestEvidence: true,
+  rememberedPreferences: true,
+  resolvedInterruptIds: true,
   publicSummary: true,
 });
 
@@ -185,6 +193,9 @@ export function mergeTripState(current: TripState, patch: Partial<TripState>): T
     candidateDestinations: patch.candidateDestinations ?? current.candidateDestinations,
     guidedOptions: patch.guidedOptions ?? current.guidedOptions,
     visionObservations: patch.visionObservations ?? current.visionObservations,
+    latestEvidence: patch.latestEvidence ?? current.latestEvidence,
+    rememberedPreferences: patch.rememberedPreferences ?? current.rememberedPreferences,
+    resolvedInterruptIds: patch.resolvedInterruptIds ?? current.resolvedInterruptIds,
   });
 }
 

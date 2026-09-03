@@ -11,6 +11,7 @@ import { AgentStatus } from "@/src/features/workspace/conversation/AgentStatus";
 import { ChoiceInstrument } from "@/src/features/workspace/conversation/ChoiceInstrument";
 import { Composer } from "@/src/features/workspace/conversation/Composer";
 import { DestinationInstrument } from "@/src/features/workspace/conversation/DestinationInstrument";
+import { EvidenceStrip } from "@/src/features/workspace/conversation/EvidenceStrip";
 import { FolioInstrument } from "@/src/features/workspace/conversation/FolioInstrument";
 import { MotifBand } from "@/src/features/workspace/conversation/MotifBand";
 import { TypeLine } from "@/src/features/workspace/conversation/TypeLine";
@@ -213,6 +214,8 @@ export function Conversation({
   onChip,
   onResume,
   onMessage,
+  onAttach,
+  uploadsEnabled,
 }: {
   messages: ConversationMessage[];
   tripState: PublicTripState;
@@ -220,15 +223,16 @@ export function Conversation({
   activeNode: GraphNodeId | null;
   running: boolean;
   draft: string;
+  uploadsEnabled?: boolean;
   onDraftChange: (value: string) => void;
   onStarter: (id: StarterId) => void;
   onChip: (field: string, value: string) => void;
   onResume: (interruptId: string, value: string) => void;
   onMessage: (text: string) => void;
+  onAttach?: (file: File) => void;
 }) {
   const reduce = useReducedMotion();
   const end = useRef<HTMLDivElement>(null);
-  const [focusToken, setFocusToken] = useState(0);
   const [typedIds, setTypedIds] = useState<Record<string, boolean>>({});
   const presence = useAgentPresence({ running, events, activeNode, reduce });
   const interrupt = resolveInterrupt(tripState, events);
@@ -294,6 +298,12 @@ export function Conversation({
               />
             )}
 
+            {(showDestinations || showFolio || showTradeoff) && (
+              <div className="mb-3">
+                <EvidenceStrip events={events} />
+              </div>
+            )}
+
             {showDestinations && interrupt && (
               <DestinationInstrument
                 title={interrupt.title}
@@ -337,10 +347,7 @@ export function Conversation({
                 initial={reduce ? false : { opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.08 + index * 0.05, ease: EASE }}
-                onClick={() => {
-                  onDraftChange(action.text);
-                  setFocusToken((token) => token + 1);
-                }}
+                onClick={() => onMessage(action.text)}
                 className="min-h-11 rounded-full border border-border bg-surface px-4 text-sm text-muted transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-accent hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
                 {action.label}
@@ -356,9 +363,10 @@ export function Conversation({
         draft={draft}
         disabled={running}
         placeholder={placeholder}
-        focusToken={focusToken}
+        uploadsEnabled={uploadsEnabled}
         onDraftChange={onDraftChange}
         onSend={onMessage}
+        onAttach={onAttach}
       />
     </section>
   );

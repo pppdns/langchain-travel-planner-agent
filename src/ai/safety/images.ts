@@ -39,3 +39,14 @@ export function validateImageUpload(input: {
 export function shouldDiscardSensitiveCaption(text: string): boolean {
   return REJECTED_HINTS.test(text);
 }
+
+export function sceneryObservation(fileName: string) {
+  const coastal = /beach|coast|harbor|sea|promenade/i.test(fileName);
+  return {
+    visible: coastal ? ["water", "open sky", "shoreline"] : ["outdoor scenery", "ambient light"],
+    atmosphere: coastal
+      ? "Coastal and informal. Useful as a vibe, not as a booking fact."
+      : "Warm, informal stay. Useful as a vibe, not as a booking fact.",
+    notInferred: ["hotel rating", "nightly price", "availability"],
+  };
+}

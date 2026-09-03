@@ -51,6 +51,7 @@ export const STARTERS: Record<StarterId, StarterSeed> = {
       dates: { flexible: true, durationNights: 4 },
       travelers: { adults: 2, children: 0 },
       preferences: ["food", "culture", "walkable"],
+      pace: "packed",
       currentPlanningStage: "gathering",
     },
   },

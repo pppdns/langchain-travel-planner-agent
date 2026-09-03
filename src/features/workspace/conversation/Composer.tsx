@@ -1,24 +1,29 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ArrowUp } from "@phosphor-icons/react";
+import { ArrowUp, Image as ImageIcon } from "@phosphor-icons/react";
 
 export function Composer({
   draft,
   disabled,
   placeholder,
   focusToken,
+  uploadsEnabled,
   onDraftChange,
   onSend,
+  onAttach,
 }: {
   draft: string;
   disabled?: boolean;
   placeholder: string;
   focusToken?: number;
+  uploadsEnabled?: boolean;
   onDraftChange: (value: string) => void;
   onSend: (text: string) => void;
+  onAttach?: (file: File) => void;
 }) {
   const area = useRef<HTMLTextAreaElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (focusToken) area.current?.focus();
@@ -44,6 +49,30 @@ export function Composer({
             Message
           </label>
           <div className="mt-1 flex items-end gap-3">
+            {uploadsEnabled && onAttach && (
+              <>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) onAttach(file);
+                    event.target.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => fileInput.current?.click()}
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border border-border text-muted transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-accent hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-40"
+                >
+                  <ImageIcon weight="light" size={16} />
+                  <span className="sr-only">Attach scenery</span>
+                </button>
+              </>
+            )}
             <textarea
               ref={area}
               id="composer"
@@ -73,7 +102,10 @@ export function Composer({
           </div>
         </div>
       </div>
-      <p className="mt-2 px-1 font-mono text-[11px] text-subtle">Enter to send. Shift+Enter for a new line.</p>
+      <p className="mt-2 px-1 font-mono text-[11px] text-subtle">
+        Enter to send. Shift+Enter for a new line.
+        {uploadsEnabled ? " JPEG, PNG, or WebP scenery only." : ""}
+      </p>
     </form>
   );
 }

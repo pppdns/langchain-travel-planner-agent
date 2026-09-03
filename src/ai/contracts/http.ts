@@ -17,7 +17,8 @@ export const createTripRequestSchema = z.object({
 
 export const createTripResponseSchema = z.object({
   tripId: z.string().uuid(),
-  mode: z.enum(["live", "replay"]),
+  mode: z.enum(["live", "replay", "fake"]),
+  uploadsEnabled: z.boolean().default(true),
 });
 
 export const runTripRequestSchema = z.discriminatedUnion("kind", [
@@ -53,7 +54,7 @@ export const tripSnapshotSchema = z.object({
   tripId: z.string().uuid(),
   title: z.string(),
   status: z.enum(["active", "completed", "expired"]),
-  mode: z.enum(["live", "replay"]),
+  mode: z.enum(["live", "replay", "fake"]),
   tripState: publicTripStateSchema,
   pendingInterrupt: publicEventSchema.nullable(),
   events: z.array(publicEventSchema),

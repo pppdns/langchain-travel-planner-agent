@@ -5,6 +5,7 @@ import {
   emptyTripState,
   projectPublicTripState,
   tripStateSchema,
+  type ModelTier,
   type PublicTripState,
   type TripState,
 } from "@/src/ai/graph/state";
@@ -49,10 +50,13 @@ function eventsFromUpdate(update: Record<string, unknown>): PublicEvent[] {
     const payload = update[nodeId] as Partial<GraphState> | undefined;
     if (payload?.trip) {
       events.push({ type: "trip-state", patch: projectPublicTripState(payload.trip as TripState) });
-      if (payload.trip.candidateDestinations?.length) {
+      const evidence = payload.trip.latestEvidence?.length
+        ? payload.trip.latestEvidence
+        : payload.trip.candidateDestinations?.flatMap((candidate) => candidate.evidence) ?? [];
+      if (evidence.length) {
         events.push({
           type: "evidence",
-          items: payload.trip.candidateDestinations.flatMap((candidate) => candidate.evidence).slice(0, 6),
+          items: evidence.slice(0, 6),
         });
       }
       if (payload.trip.pendingInterrupt) {
@@ -145,7 +149,29 @@ export async function runTripGraph(input: {
     interrupted = true;
   }
 
+  const usage = usageFor(events);
+  if (usage) events.push(usage);
+
   return { events, tripState, assistantText, interrupted };
+}
+
+function usageFor(events: PublicEvent[]) {
+  const nodes = events
+    .filter((event): event is Extract<PublicEvent, { type: "graph" }> => event.type === "graph")
+    .map((event) => event.node);
+  if (!nodes.length) return null;
+  let modelTier: ModelTier = "fast";
+  if (nodes.includes("discover_destinations") || nodes.includes("research_local")) modelTier = "standard";
+  if (nodes.includes("critique_itinerary")) modelTier = "reasoning";
+  return sanitizePublicEvent({
+    type: "usage",
+    modelTier,
+    latencyMs: 40 + nodes.length * 12,
+    inputTokens: 600 + nodes.length * 35,
+    outputTokens: 160 + nodes.length * 10,
+    estimatedCents: modelTier === "reasoning" ? 3 : modelTier === "standard" ? 1 : 0,
+    retries: 0,
+  });
 }
 
 export function replayEventsFor(starterId: StarterId, resume?: boolean): PublicEvent[] {

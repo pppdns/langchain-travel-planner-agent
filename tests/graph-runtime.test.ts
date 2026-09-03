@@ -43,6 +43,57 @@ describe("langgraph flows", () => {
     expect(state.values.trip.pendingInterrupt).toBeNull();
   });
 
+  it("pauses on a pace-versus-budget tradeoff and resumes", async () => {
+    const graph = compileTripGraph();
+    const thread = { configurable: { thread_id: "tradeoff-test" } };
+    await graph.invoke(
+      {
+        inputKind: "starter",
+        inputText: "city-break-budget",
+        trip: applyStarterSeed("city-break-budget"),
+      },
+      thread,
+    );
+    const interrupted = await graph.getState(thread);
+    expect(interrupted.values.trip.destinationStatus).toBe("candidates");
+
+    await graph.invoke(new Command({ resume: interrupted.values.trip.candidateDestinations[0]?.slug }), thread);
+    const tradeoff = await graph.getState(thread);
+    expect(tradeoff.values.trip.currentPlanningStage).toBe("awaiting_tradeoff");
+    expect(tradeoff.tasks.some((task) => task.interrupts.length > 0)).toBe(true);
+
+    await graph.invoke(new Command({ resume: "protect-budget" }), thread);
+    const resumed = await graph.getState(thread);
+    expect(resumed.values.trip.pace).toBe("relaxed");
+    expect(resumed.values.trip.itinerary?.days.length).toBeGreaterThan(0);
+    expect(resumed.values.trip.pendingInterrupt).toBeNull();
+  });
+
+  it("revises a finished itinerary on the same thread", async () => {
+    const graph = compileTripGraph();
+    const thread = { configurable: { thread_id: "revision-test" } };
+    await graph.invoke(
+      {
+        inputKind: "starter",
+        inputText: "barcelona-couple",
+        trip: applyStarterSeed("barcelona-couple"),
+      },
+      thread,
+    );
+    await graph.invoke(
+      {
+        inputKind: "message",
+        inputText: "Make the pace slower and keep days shorter.",
+        trip: (await graph.getState(thread)).values.trip,
+      },
+      thread,
+    );
+    const revised = await graph.getState(thread);
+    expect(revised.values.assistantText).toMatch(/slowed the days/i);
+    expect(revised.values.trip.pace).toBe("relaxed");
+    expect(revised.values.trip.itinerary?.constraintsHonored).toContain("unhurried");
+  });
+
   it("redirects off-scope traffic", async () => {
     const graph = compileTripGraph();
     const result = await graph.invoke(

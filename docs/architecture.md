@@ -24,7 +24,9 @@ Interview map:
 
 | Question | Code |
 |---|---|
-| How do you keep HITL on the same thread? | `src/ai/graph/compile.ts` `await_destination_choice` + `Command` |
+| How do you keep HITL on the same thread? | `src/ai/graph/compile.ts` `await_destination_choice` / `await_tradeoff` + `Command` |
 | How do you stop clients from stuffing history? | `app/api/trips/[id]/run/route.ts` sends only the new delta |
 | How do you expose a graph without leaking prompts? | `src/ai/stream/public-events.ts` |
 | How do you keep the demo alive? | `src/ai/runtime/budget.ts` + `src/ai/replay` |
+| How do you authorize tools? | `src/ai/tools/catalog.ts` `NODE_TOOL_ALLOWLIST` |
+| How do you revise a finished plan? | `src/ai/graph/revisions.ts` on the same thread |

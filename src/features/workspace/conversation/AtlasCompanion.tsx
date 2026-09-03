@@ -6,6 +6,7 @@ import type { GraphNodeId } from "@/src/ai/graph/spec";
 import type { PublicEvent } from "@/src/ai/stream/public-events";
 import type { PublicTripState } from "@/src/ai/graph/state";
 import { OrchestrationAtlas } from "@/src/features/workspace/atlas/OrchestrationAtlas";
+import { TripBrief } from "@/src/features/workspace/conversation/TripBrief";
 import { NodeInspector } from "@/src/features/workspace/inspector/NodeInspector";
 
 function AtlasBody({
@@ -15,6 +16,7 @@ function AtlasBody({
   tripState,
   onSelect,
   onClearSelected,
+  onForget,
 }: {
   events: PublicEvent[];
   activeNode: GraphNodeId | null;
@@ -22,6 +24,7 @@ function AtlasBody({
   tripState: PublicTripState;
   onSelect: (id: GraphNodeId) => void;
   onClearSelected: () => void;
+  onForget?: (key: string) => void;
 }) {
   return (
     <>
@@ -33,6 +36,7 @@ function AtlasBody({
           onSelect={onSelect}
         />
       </div>
+      <TripBrief tripState={tripState} onForget={onForget} />
       {selectedNode && (
         <NodeInspector
           nodeId={selectedNode}
@@ -54,6 +58,7 @@ export function AtlasCompanion({
   onSelect,
   onClearSelected,
   onCloseSheet,
+  onForget,
 }: {
   events: PublicEvent[];
   activeNode: GraphNodeId | null;
@@ -63,6 +68,7 @@ export function AtlasCompanion({
   onSelect: (id: GraphNodeId) => void;
   onClearSelected: () => void;
   onCloseSheet: () => void;
+  onForget?: (key: string) => void;
 }) {
   useEffect(() => {
     if (!sheetOpen) return;
@@ -78,7 +84,7 @@ export function AtlasCompanion({
       <aside
         role="region"
         aria-label="Orchestration Atlas"
-        className="hidden min-h-0 flex-col border-l border-border bg-surface lg:flex lg:w-[min(42vw,560px)]"
+        className="hidden min-h-0 flex-col overflow-y-auto border-l border-border bg-surface lg:flex lg:w-[min(42vw,560px)]"
       >
         <div className="flex items-baseline justify-between px-4 pt-4">
           <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-subtle">Orchestration Atlas</p>
@@ -91,6 +97,7 @@ export function AtlasCompanion({
           tripState={tripState}
           onSelect={onSelect}
           onClearSelected={onClearSelected}
+          onForget={onForget}
         />
       </aside>
 
@@ -123,6 +130,7 @@ export function AtlasCompanion({
               tripState={tripState}
               onSelect={onSelect}
               onClearSelected={onClearSelected}
+              onForget={onForget}
             />
           </div>
         </div>

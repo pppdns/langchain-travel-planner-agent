@@ -11,6 +11,7 @@ export type ConversationMessage = {
 export type WorkspaceState = {
   tripId: string | null;
   mode: "live" | "replay" | "fake";
+  uploadsEnabled: boolean;
   tripState: PublicTripState;
   events: PublicEvent[];
   messages: ConversationMessage[];

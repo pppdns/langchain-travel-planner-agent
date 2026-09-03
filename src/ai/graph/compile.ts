@@ -1,7 +1,15 @@
 import { Annotation, END, MemorySaver, START, StateGraph, interrupt } from "@langchain/langgraph";
+import type { LangGraphRunnableConfig } from "@langchain/langgraph";
 import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
 import { buildItinerary } from "@/src/ai/graph/itinerary";
 import { evidenceFor, rankDestinations } from "@/src/ai/graph/rank";
+import {
+  applyRevision,
+  detectRevision,
+  rememberedFromTrip,
+  resetForRediscovery,
+  revisionAssistantText,
+} from "@/src/ai/graph/revisions";
 import {
   emptyTripState,
   mergeTripState,
@@ -12,6 +20,17 @@ import {
 import { isOffScope, looksLikeInjection } from "@/src/ai/guardrails/scope";
 import { applyStarterSeed } from "@/src/ai/contracts/starters";
 import type { StarterId } from "@/src/ai/contracts/http";
+import { deleteMemory } from "@/src/ai/memory/preferences";
+import {
+  assertToolAllowed,
+  convertCurrency,
+  lookupDestinationProfile,
+  readTripState,
+  searchMemories,
+  searchTravelKnowledge,
+  getWeather,
+  writeMemoryTool,
+} from "@/src/ai/tools/catalog";
 
 export const GraphAnnotation = Annotation.Root({
   messages: Annotation<BaseMessage[]>({
@@ -72,14 +91,59 @@ async function scopeGuard(state: GraphState) {
   return {};
 }
 
-async function gatherPreferences(state: GraphState) {
+function threadIdFrom(config?: LangGraphRunnableConfig) {
+  return String(config?.configurable?.thread_id ?? "local-demo-user");
+}
+
+async function gatherPreferences(state: GraphState, config?: LangGraphRunnableConfig) {
+  const threadId = threadIdFrom(config);
   let trip = state.trip;
+
+  assertToolAllowed("gather_preferences", "read_trip_state");
+  readTripState.execute({
+    destinationStatus: trip.destinationStatus,
+    currentPlanningStage: trip.currentPlanningStage,
+    destinationSlug: trip.destinationSlug,
+  });
+  assertToolAllowed("gather_preferences", "search_memories");
+  searchMemories.execute({ userId: threadId });
+
   if (state.inputKind === "starter") {
     trip = applyStarterSeed(state.inputText as StarterId);
+    const remembered = rememberedFromTrip(trip);
+    for (const item of remembered) {
+      assertToolAllowed("gather_preferences", "write_memory");
+      writeMemoryTool.execute({ userId: threadId, key: item.key, value: item.value });
+    }
+    trip = mergeTripState(trip, { rememberedPreferences: remembered });
   } else if (state.inputKind === "chip") {
     const [field, value] = state.inputText.split(":", 2);
+    if (field === "memory" && value?.startsWith("forget:")) {
+      const key = value.slice(7);
+      deleteMemory(threadId, key);
+      return {
+        trip: mergeTripState(trip, {
+          rememberedPreferences: trip.rememberedPreferences.filter((item) => item.key !== key),
+        }),
+        assistantText: "Forgot that preference for this session.",
+      };
+    }
     trip = applyChip(trip, field, value ?? "");
   } else if (state.inputText) {
+    const revision = trip.itinerary ? detectRevision(state.inputText) : null;
+    if (revision === "another-destination") {
+      return {
+        trip: resetForRediscovery(trip),
+        assistantText: revisionAssistantText(revision),
+      };
+    }
+    if (revision) {
+      return {
+        trip: applyRevision(trip, revision),
+        assistantText: revisionAssistantText(revision),
+      };
+    }
+
     const text = state.inputText.toLowerCase();
     if (text.includes("barcelona")) {
       trip = mergeTripState(trip, {
@@ -91,6 +155,11 @@ async function gatherPreferences(state: GraphState) {
     if (text.includes("beach")) trip = mergeTripState(trip, { tripType: "beach", preferences: [...trip.preferences, "beach"] });
     if (text.includes("family")) trip = mergeTripState(trip, { tripType: "family" });
     if (text.includes("unhurried") || text.includes("relax")) trip = mergeTripState(trip, { pace: "relaxed" });
+    if (trip.visionObservations[0]?.atmosphere && !trip.preferences.includes("atmosphere from photo")) {
+      trip = mergeTripState(trip, {
+        preferences: [...trip.preferences, "atmosphere from photo"],
+      });
+    }
   }
 
   const missing = missingUsefulFields(trip);
@@ -138,7 +207,17 @@ async function routeSupervisor(state: GraphState) {
 }
 
 async function discoverDestinations(state: GraphState) {
+  const query = [state.trip.tripType, ...state.trip.preferences].filter(Boolean).join(" ") || "city break";
+  assertToolAllowed("discover_destinations", "search_travel_knowledge");
+  const knowledge = searchTravelKnowledge.execute({ query });
   const candidates = rankDestinations(state.trip, 3);
+  for (const candidate of candidates) {
+    assertToolAllowed("discover_destinations", "lookup_destination_profile");
+    lookupDestinationProfile.execute({ slug: candidate.slug });
+    assertToolAllowed("discover_destinations", "get_weather");
+    getWeather.execute({ slug: candidate.slug });
+  }
+
   const interruptPayload: PendingInterrupt = {
     interruptId: `choose-destination-${candidates.map((item) => item.slug).join("-")}`,
     interruptType: "choose_destination",
@@ -158,6 +237,7 @@ async function discoverDestinations(state: GraphState) {
       candidateDestinations: candidates,
       currentPlanningStage: "awaiting_destination",
       pendingInterrupt: interruptPayload,
+      latestEvidence: [...knowledge.items, ...candidates.flatMap((item) => item.evidence)].slice(0, 6),
     }),
     assistantText: "I have three destination options with evidence. Choose one to continue on this same thread.",
   };
@@ -194,11 +274,22 @@ async function researchLocal(state: GraphState) {
   if (!slug) {
     return {};
   }
+  assertToolAllowed("research_local", "search_travel_knowledge");
+  searchTravelKnowledge.execute({ query: "neighborhoods pace food", destinationSlug: slug });
+  assertToolAllowed("research_local", "lookup_destination_profile");
+  lookupDestinationProfile.execute({ slug });
   const evidence = evidenceFor(slug, ["neighborhoods", "pace", "food", "family"]);
   return {
     trip: mergeTripState(state.trip, {
       currentPlanningStage: "planning",
       publicSummary: evidence[0]?.body,
+      latestEvidence: evidence.map((doc) => ({
+        id: doc.id,
+        title: doc.title,
+        sourceType: doc.sourceType,
+        destinationSlug: doc.destinationSlug,
+        category: doc.category,
+      })),
     }),
     assistantText: `I gathered local notes for ${state.trip.destinationName ?? slug}. Next I will draft the days.`,
   };
@@ -207,6 +298,14 @@ async function researchLocal(state: GraphState) {
 async function planItinerary(state: GraphState) {
   const slug = state.trip.destinationSlug;
   if (!slug) return {};
+  if (state.trip.budget.amount !== undefined) {
+    assertToolAllowed("plan_itinerary", "convert_currency");
+    convertCurrency.execute({
+      amount: state.trip.budget.amount,
+      from: state.trip.budget.currency,
+      to: "EUR",
+    });
+  }
   const itinerary = buildItinerary(state.trip, slug);
   return {
     trip: mergeTripState(state.trip, {
@@ -220,7 +319,8 @@ async function critiqueItinerary(state: GraphState) {
   const needsTradeoff =
     state.trip.budget.flexibility === "strict" &&
     state.trip.pace === "packed" &&
-    (state.trip.budget.amount ?? 0) > 0;
+    (state.trip.budget.amount ?? 0) > 0 &&
+    !state.trip.resolvedInterruptIds.includes("tradeoff-pace-budget");
 
   if (needsTradeoff) {
     const pending: PendingInterrupt = {
@@ -258,19 +358,23 @@ async function awaitTradeoff(state: GraphState) {
     trip: mergeTripState(state.trip, {
       pendingInterrupt: null,
       pace: protectBudget ? "relaxed" : state.trip.pace,
+      resolvedInterruptIds: [...new Set([...state.trip.resolvedInterruptIds, "tradeoff-pace-budget"])],
       currentPlanningStage: "planning",
     }),
   };
 }
 
 async function presentPlan(state: GraphState) {
-  if (state.assistantText.includes("I only plan trips")) {
+  if (/only plan trips|Forgot that preference/i.test(state.assistantText)) {
     return { assistantText: state.assistantText };
   }
   const itinerary = state.trip.itinerary;
+  const preface = /slowed the days|cut optional transfers|search again/i.test(state.assistantText)
+    ? `${state.assistantText} `
+    : "";
   const text = itinerary
-    ? `Here is a ${itinerary.days.length}-day plan for ${itinerary.destinationName}. Ask for a revision and I will keep the same thread.`
-    : "The plan is ready.";
+    ? `${preface}Here is a ${itinerary.days.length}-day plan for ${itinerary.destinationName}. Ask for a revision and I will keep the same thread.`
+    : preface || "The plan is ready.";
   return {
     trip: mergeTripState(state.trip, {
       currentPlanningStage: "complete",
@@ -288,6 +392,8 @@ function afterScope(state: GraphState) {
 
 function afterGather(state: GraphState) {
   if (state.trip.currentPlanningStage === "gathering") return "present_plan";
+  if (state.trip.currentPlanningStage === "presenting" && state.trip.itinerary) return "present_plan";
+  if (state.trip.currentPlanningStage === "complete") return "present_plan";
   return "route_supervisor";
 }
 

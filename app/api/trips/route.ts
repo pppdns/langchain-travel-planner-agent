@@ -27,5 +27,9 @@ export async function POST(request: Request) {
   const title = body.starterId ? STARTERS[body.starterId].label : "Untitled trip";
   const trip = await createStoredTrip({ userId, title, mode });
 
-  return NextResponse.json({ tripId: trip.id, mode });
+  return NextResponse.json({
+    tripId: trip.id,
+    mode,
+    uploadsEnabled: env.UPLOADS_DISABLED !== "true",
+  });
 }

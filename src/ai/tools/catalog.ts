@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getDestination } from "@/data/travel/catalog";
 import { searchKnowledge } from "@/src/ai/graph/rank";
+import { listMemories, writeMemory } from "@/src/ai/memory/preferences";
 
 export const TOOL_NAMES = [
   "lookup_destination_profile",
@@ -15,7 +16,7 @@ export const TOOL_NAMES = [
 export type ToolName = (typeof TOOL_NAMES)[number];
 
 export const NODE_TOOL_ALLOWLIST: Record<string, ToolName[]> = {
-  gather_preferences: ["search_memories", "read_trip_state"],
+  gather_preferences: ["search_memories", "read_trip_state", "write_memory"],
   route_supervisor: ["read_trip_state"],
   discover_destinations: [
     "lookup_destination_profile",
@@ -88,5 +89,43 @@ export const convertCurrency = {
     const from = rates[input.from] ?? 1;
     const to = rates[input.to] ?? 1;
     return { ok: true as const, amount: Number(((input.amount / from) * to).toFixed(2)), source: "fallback" };
+  },
+};
+
+export const searchMemories = {
+  name: "search_memories" as const,
+  description: "Search session-scoped travel preferences.",
+  schema: z.object({ userId: z.string(), query: z.string().optional() }),
+  execute(input: { userId: string; query?: string }) {
+    const items = listMemories(input.userId);
+    const query = input.query?.toLowerCase();
+    return {
+      ok: true as const,
+      items: query
+        ? items.filter((item) => item.key.includes(query) || item.value.toLowerCase().includes(query))
+        : items,
+    };
+  },
+};
+
+export const writeMemoryTool = {
+  name: "write_memory" as const,
+  description: "Store a confirmed travel preference for this session.",
+  schema: z.object({ userId: z.string(), key: z.string(), value: z.string() }),
+  execute(input: { userId: string; key: string; value: string }) {
+    return { ok: true as const, items: writeMemory(input.userId, input.key, input.value, true) };
+  },
+};
+
+export const readTripState = {
+  name: "read_trip_state" as const,
+  description: "Read public trip fields the current node is allowed to see.",
+  schema: z.object({
+    destinationStatus: z.string(),
+    currentPlanningStage: z.string(),
+    destinationSlug: z.string().optional(),
+  }),
+  execute(input: { destinationStatus: string; currentPlanningStage: string; destinationSlug?: string }) {
+    return { ok: true as const, ...input };
   },
 };

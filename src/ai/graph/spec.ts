@@ -50,7 +50,7 @@ export const GRAPH_NODES: readonly GraphNodeSpec[] = [
     kind: "gather",
     inspector: {
       purpose: "Fill only useful missing TripState fields.",
-      typicalTools: ["read_trip_state", "search_memories"],
+      typicalTools: ["read_trip_state", "search_memories", "write_memory"],
     },
     position: { x: 220, y: 40 },
   },

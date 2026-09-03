@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { DESTINATIONS, PLATE_MOTIFS } from "@/data/travel/catalog";
 import { buildItinerary } from "@/src/ai/graph/itinerary";
+import { detectRevision } from "@/src/ai/graph/revisions";
 import { emptyTripState, mergeTripState, missingUsefulFields, tripStateSchema } from "@/src/ai/graph/state";
+import { sceneryObservation, validateImageUpload } from "@/src/ai/safety/images";
+import { writeMemory, listMemories, deleteMemory } from "@/src/ai/memory/preferences";
+import { runTripGraph } from "@/src/ai/runtime/public-run";
+import { applyStarterSeed } from "@/src/ai/contracts/starters";
 import { GRAPH_NODE_IDS, GRAPH_SPEC } from "@/src/ai/graph/spec";
 import {
   isOffScopeQuestion,
@@ -12,8 +17,7 @@ import {
 import { sanitizePublicEvent } from "@/src/ai/stream/public-events";
 import { isOffScope, looksLikeInjection } from "@/src/ai/guardrails/scope";
 import { rankDestinations } from "@/src/ai/graph/rank";
-import { validateImageUpload } from "@/src/ai/safety/images";
-import { assertToolAllowed } from "@/src/ai/tools/catalog";
+import { assertToolAllowed, searchMemories, writeMemoryTool } from "@/src/ai/tools/catalog";
 import { reserveSpend, reservedToday } from "@/src/ai/runtime/budget";
 
 describe("trip state", () => {
@@ -137,6 +141,13 @@ describe("ranking and tools", () => {
   it("blocks unauthorized tools", () => {
     expect(() => assertToolAllowed("gather_preferences", "get_weather")).toThrow();
   });
+
+  it("authorizes session memory writes on gather", () => {
+    expect(() => assertToolAllowed("gather_preferences", "write_memory")).not.toThrow();
+    const written = writeMemoryTool.execute({ userId: "test-user", key: "tripType", value: "family" });
+    expect(written.items.some((item) => item.key === "tripType")).toBe(true);
+    expect(searchMemories.execute({ userId: "test-user", query: "family" }).items.length).toBeGreaterThan(0);
+  });
 });
 
 describe("images and budget", () => {
@@ -157,10 +168,44 @@ describe("images and budget", () => {
     expect(validateImageUpload({ mime: "image/jpeg", bytes, fileName: "hotel.jpg" }).ok).toBe(true);
   });
 
+  it("keeps scenery observations honest", () => {
+    const note = sceneryObservation("coast-promenade.jpg");
+    expect(note.visible).toContain("water");
+    expect(note.notInferred).toContain("nightly price");
+  });
+
   it("reserves spend without exceeding the ceiling", () => {
     process.env.DAILY_BUDGET_CENTS = "20";
     expect(reserveSpend("t1", 10)).toBe(true);
     expect(reserveSpend("t2", 15)).toBe(false);
     expect(reservedToday()).toBeGreaterThan(0);
+  });
+});
+
+describe("revisions and usage", () => {
+  it("classifies revision intents", () => {
+    expect(detectRevision("Make the pace slower and keep days shorter.")).toBe("slower");
+    expect(detectRevision("Cut optional transfers and keep the stay in one area.")).toBe("fewer-transfers");
+    expect(detectRevision("Suggest another destination that still fits.")).toBe("another-destination");
+    expect(detectRevision("hello")).toBeNull();
+  });
+
+  it("emits a usage event after a known-destination run", async () => {
+    const result = await runTripGraph({
+      threadId: "usage-test",
+      request: { kind: "starter", starterId: "barcelona-couple", idempotencyKey: "usage-test-key" },
+      existing: applyStarterSeed("barcelona-couple"),
+    });
+    expect(result.events.some((event) => event.type === "usage")).toBe(true);
+    expect(result.events.some((event) => event.type === "evidence")).toBe(true);
+  });
+});
+
+describe("session memory", () => {
+  it("writes, lists, and forgets", () => {
+    writeMemory("mem-user", "origin", "Budapest", true);
+    expect(listMemories("mem-user").some((item) => item.key === "origin")).toBe(true);
+    deleteMemory("mem-user", "origin");
+    expect(listMemories("mem-user").some((item) => item.key === "origin")).toBe(false);
   });
 });

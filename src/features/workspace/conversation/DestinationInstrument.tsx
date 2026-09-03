@@ -98,6 +98,9 @@ export function DestinationInstrument({
                   {tag && (
                     <span className="mt-1 block font-mono text-[10px] uppercase tracking-[0.12em] text-muted">{tag}</span>
                   )}
+                  {candidate.evidence[0] && (
+                    <span className="mt-1 block font-mono text-[10px] text-subtle">{candidate.evidence[0].title}</span>
+                  )}
                 </span>
               </button>
             </motion.li>

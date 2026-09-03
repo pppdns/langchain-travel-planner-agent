@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { SAFE_IMAGE_POLICY } from "@/src/ai/contracts/acceptance";
-import { validateImageUpload } from "@/src/ai/safety/images";
+import { sceneryObservation, validateImageUpload } from "@/src/ai/safety/images";
 import { getEnv } from "@/src/lib/env";
 import { assertHumanRequest } from "@/src/lib/botid";
 import { getSessionUserId, getStoredTrip, saveStoredTrip } from "@/src/lib/trips/store";
@@ -36,14 +36,22 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: check.reason }, { status: 400 });
   }
 
+  const observation = sceneryObservation(file.name);
+  trip.tripState = {
+    ...trip.tripState,
+    visionObservations: [...trip.tripState.visionObservations, observation],
+  };
+  const assistantText = `Image received (${file.type}, ${(bytes.byteLength / 1024).toFixed(0)} KB). ${observation.atmosphere} I will not infer ${observation.notInferred[0]}.`;
   trip.messages.push({
     role: "assistant",
-    content: `Image received (${file.type}, ${(bytes.byteLength / 1024).toFixed(0)} KB). I will only keep scenery or hotel-atmosphere observations.`,
+    content: assistantText,
   });
   await saveStoredTrip(trip);
 
   return NextResponse.json({
     accepted: true,
     policy: SAFE_IMAGE_POLICY,
+    observation,
+    assistantText,
   });
 }

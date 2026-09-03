@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { emptyTripState } from "@/src/ai/graph/state";
+import { emptyTripState, publicTripStateSchema, type PublicTripState } from "@/src/ai/graph/state";
 import type { PublicEvent } from "@/src/ai/stream/public-events";
 import { STARTER_COPY, type StarterId } from "@/src/ai/contracts/http";
 import { getDestination } from "@/data/travel/catalog";
 import { AtlasCompanion } from "@/src/features/workspace/conversation/AtlasCompanion";
 import { Conversation } from "@/src/features/workspace/conversation/Conversation";
 import { GraphPulse } from "@/src/features/workspace/conversation/GraphPulse";
+import { TripBrief } from "@/src/features/workspace/conversation/TripBrief";
 import {
   chipFieldForQuestion,
   matchGuidedReply,
@@ -40,6 +41,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
   const [state, setState] = useState<WorkspaceState>({
     tripId: null,
     mode: "fake",
+    uploadsEnabled: true,
     tripState: emptyTripState(),
     events: [],
     messages: [],
@@ -59,13 +61,23 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      const payload = (await created.json()) as { tripId?: string; mode?: WorkspaceState["mode"]; error?: string };
+      const payload = (await created.json()) as {
+        tripId?: string;
+        mode?: WorkspaceState["mode"];
+        uploadsEnabled?: boolean;
+        error?: string;
+      };
       if (cancelled) return;
       if (!created.ok || !payload.tripId) {
         setState((current) => ({ ...current, error: payload.error ?? "Could not start a trip." }));
         return;
       }
-      setState((current) => ({ ...current, tripId: payload.tripId!, mode: payload.mode ?? "fake" }));
+      setState((current) => ({
+        ...current,
+        tripId: payload.tripId!,
+        mode: payload.mode ?? "fake",
+        uploadsEnabled: payload.uploadsEnabled ?? true,
+      }));
       if (initialReplay) {
         await run(payload.tripId, { kind: "replay", starterId: initialReplay }, STARTER_COPY[initialReplay].label);
       }
@@ -111,7 +123,9 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
           events: [...current.events, frame.event!],
           activeNode: frame.event!.type === "graph" ? frame.event!.node : current.activeNode,
           tripState:
-            frame.event!.type === "trip-state" ? { ...current.tripState, ...frame.event!.patch } : current.tripState,
+            frame.event!.type === "trip-state"
+              ? publicTripStateSchema.parse({ ...current.tripState, ...frame.event!.patch })
+              : current.tripState,
           mode: body.kind === "replay" ? "replay" : current.mode,
         }));
       }
@@ -167,10 +181,25 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
             />
           </div>
           <nav className="flex shrink-0 items-center gap-4 text-sm">
+            <span
+              className="hidden font-mono text-[11px] text-subtle sm:inline"
+              title={
+                state.mode === "live"
+                  ? "Live models are on for this session."
+                  : state.mode === "replay"
+                    ? "Playing a recorded public-event fixture."
+                    : "Deterministic runtime so CI and the public demo stay alive."
+              }
+            >
+              {state.mode === "live" ? "Live models" : state.mode === "replay" ? "Recorded run" : "Fake runtime"}
+            </span>
             <Link href="/case-study" className="text-muted transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:text-text">
               Case study
             </Link>
-            <a href="https://github.com" className="hidden text-subtle transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:text-text sm:inline">
+            <a
+              href="https://github.com/pppdns/agent-demo"
+              className="hidden text-subtle transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:text-text sm:inline"
+            >
               Built by Denes Papp
             </a>
           </nav>
@@ -183,6 +212,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
             surface="mobile"
             onInspect={() => setState((current) => ({ ...current, atlasOpen: true }))}
           />
+          <TripBrief tripState={state.tripState} compact />
         </div>
       </header>
 
@@ -213,6 +243,55 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
           onResume={(interruptId, value) => {
             const name = getDestination(value)?.name ?? value;
             startRun({ kind: "resume", interruptId, value }, name);
+          }}
+          uploadsEnabled={state.uploadsEnabled}
+          onAttach={(file) => {
+            if (!state.tripId) return;
+            void (async () => {
+              setState((current) => ({
+                ...current,
+                running: true,
+                error: null,
+                messages: [
+                  ...current.messages,
+                  { id: crypto.randomUUID(), role: "user", content: `Attached ${file.name}` },
+                ],
+              }));
+              const form = new FormData();
+              form.append("file", file);
+              const response = await fetch(`/api/trips/${state.tripId}/images`, { method: "POST", body: form });
+              const payload = (await response.json().catch(() => ({}))) as {
+                error?: string;
+                assistantText?: string;
+                observation?: PublicTripState["visionObservations"][number];
+              };
+              if (!response.ok) {
+                setState((current) => ({
+                  ...current,
+                  running: false,
+                  error: payload.error ?? "Upload failed.",
+                }));
+                return;
+              }
+              setState((current) => ({
+                ...current,
+                running: false,
+                tripState: payload.observation
+                  ? {
+                      ...current.tripState,
+                      visionObservations: [...current.tripState.visionObservations, payload.observation],
+                    }
+                  : current.tripState,
+                messages: [
+                  ...current.messages,
+                  {
+                    id: crypto.randomUUID(),
+                    role: "assistant",
+                    content: payload.assistantText ?? "Image received.",
+                  },
+                ],
+              }));
+            })();
           }}
           onMessage={(text) => {
             const interrupt = resolveInterrupt(state.tripState, state.events);
@@ -246,6 +325,7 @@ export function RouteStateWorkspace({ initialReplay }: { initialReplay?: Starter
           onSelect={(id) => setState((current) => ({ ...current, selectedNode: id }))}
           onClearSelected={() => setState((current) => ({ ...current, selectedNode: null }))}
           onCloseSheet={() => setState((current) => ({ ...current, atlasOpen: false }))}
+          onForget={(key) => startRun({ kind: "chip", field: "memory", value: `forget:${key}` }, `Forget ${key}`)}
         />
       </div>
     </div>
