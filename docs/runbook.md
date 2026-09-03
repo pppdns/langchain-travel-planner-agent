@@ -9,6 +9,10 @@ Environment flags:
 
 If live models fail or the budget is exhausted, starters play recorded runs with an honest banner.
 
+`ROUTE_STATE_RUNTIME=live` only turns on live models. Trip create/run persistence uses Supabase Postgres via `SUPABASE_SESSION_POOLER_DATABASE_URL`. Vercel isolates do not share the in-memory map, so that pooler URL is required in production.
+
+Optional: enable [Anonymous sign-ins](https://supabase.com/dashboard/project/_/auth/providers) and set `SUPABASE_SERVICE_ROLE_KEY` so Auth-backed RLS sessions work too.
+
 To turn on live models, pgvector retrieval, AI SDK token streaming, and Open-Meteo weather:
 
 ```sh

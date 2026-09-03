@@ -1,5 +1,7 @@
+import { cookies } from "next/headers";
 import { emptyTripState, publicTripStateSchema, type PublicTripState } from "@/src/ai/graph/state";
 import type { PublicEvent } from "@/src/ai/stream/public-events";
+import { getCheckpointPool } from "@/src/lib/db/pool";
 import { createAdminSupabaseClient } from "@/src/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/src/lib/supabase/server";
 
@@ -14,19 +16,199 @@ export type StoredTrip = {
   messages: Array<{ role: "user" | "assistant"; content: string }>;
 };
 
+const LOCAL_DEMO_USER = "local-demo-user";
+const DEMO_UID_COOKIE = "rs_demo_uid";
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const memory = new Map<string, StoredTrip>();
+
+type TripRecord = {
+  id: string;
+  user_id: string;
+  title: string;
+  status: StoredTrip["status"];
+  mode: StoredTrip["mode"];
+  public_state: unknown;
+};
+
+export function isPersistedUserId(userId: string): boolean {
+  return UUID_RE.test(userId);
+}
+
+export function canUseMemoryFallback(): boolean {
+  return process.env.VERCEL !== "1";
+}
+
+function tripFromRecord(data: TripRecord, cached?: StoredTrip | null): StoredTrip {
+  return {
+    id: data.id,
+    userId: data.user_id,
+    title: data.title,
+    status: data.status,
+    mode: data.mode,
+    tripState: publicTripStateSchema.catch(emptyTripState()).parse(data.public_state),
+    events: cached?.events ?? [],
+    messages: cached?.messages ?? [],
+  };
+}
+
+async function readDemoUserCookie(): Promise<string | null> {
+  try {
+    const store = await cookies();
+    const value = store.get(DEMO_UID_COOKIE)?.value;
+    return value && isPersistedUserId(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeDemoUserCookie(userId: string) {
+  try {
+    const store = await cookies();
+    store.set(DEMO_UID_COOKIE, userId, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24,
+    });
+  } catch {
+    // Route handlers can set cookies. Server Components cannot.
+  }
+}
+
+async function persistTripRow(trip: StoredTrip): Promise<boolean> {
+  if (!isPersistedUserId(trip.userId)) return false;
+
+  const row = {
+    id: trip.id,
+    user_id: trip.userId,
+    title: trip.title,
+    status: trip.status,
+    mode: trip.mode,
+    public_state: trip.tripState,
+  };
+
+  const pool = getCheckpointPool();
+  if (pool) {
+    await pool.query(
+      `insert into public.trips (id, user_id, title, status, mode, public_state)
+       values ($1, $2, $3, $4, $5, $6::jsonb)`,
+      [row.id, row.user_id, row.title, row.status, row.mode, JSON.stringify(row.public_state)],
+    );
+    return true;
+  }
+
+  const admin = createAdminSupabaseClient();
+  if (admin) {
+    const { error } = await admin.from("trips").insert(row);
+    if (error) throw error;
+    return true;
+  }
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return false;
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.from("trips").insert(row);
+  if (error) throw error;
+  return true;
+}
+
+async function loadTripRow(tripId: string, userId: string): Promise<TripRecord | null> {
+  if (!isPersistedUserId(userId)) return null;
+
+  const pool = getCheckpointPool();
+  if (pool) {
+    const result = await pool.query<TripRecord>(
+      `select id, user_id, title, status, mode, public_state
+       from public.trips
+       where id = $1 and user_id = $2
+       limit 1`,
+      [tripId, userId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  const admin = createAdminSupabaseClient();
+  if (admin) {
+    const { data, error } = await admin.from("trips").select("*").eq("id", tripId).maybeSingle();
+    if (error) throw error;
+    if (!data || data.user_id !== userId) return null;
+    return data as TripRecord;
+  }
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return null;
+
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.from("trips").select("*").eq("id", tripId).maybeSingle();
+  if (error) throw error;
+  if (!data || data.user_id !== userId) return null;
+  return data as TripRecord;
+}
+
+async function updateTripRow(trip: StoredTrip): Promise<void> {
+  if (!isPersistedUserId(trip.userId)) return;
+
+  const pool = getCheckpointPool();
+  if (pool) {
+    await pool.query(
+      `update public.trips
+       set title = $2,
+           status = $3,
+           mode = $4,
+           public_state = $5::jsonb,
+           updated_at = now()
+       where id = $1 and user_id = $6`,
+      [trip.id, trip.title, trip.status, trip.mode, JSON.stringify(trip.tripState), trip.userId],
+    );
+    return;
+  }
+
+  const admin = createAdminSupabaseClient();
+  const client = admin ?? (await createServerSupabaseClient().catch(() => null));
+  if (!client) return;
+  const { error } = await client
+    .from("trips")
+    .update({
+      title: trip.title,
+      status: trip.status,
+      mode: trip.mode,
+      public_state: trip.tripState,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", trip.id)
+    .eq("user_id", trip.userId);
+  if (error) throw error;
+}
 
 export async function getSessionUserId(): Promise<string> {
   try {
     const supabase = await createServerSupabaseClient();
     const existing = await supabase.auth.getUser();
-    if (existing.data.user) return existing.data.user.id;
+    if (existing.data.user?.id) {
+      await writeDemoUserCookie(existing.data.user.id);
+      return existing.data.user.id;
+    }
     const created = await supabase.auth.signInAnonymously();
-    if (created.data.user) return created.data.user.id;
+    if (created.data.user?.id) {
+      await writeDemoUserCookie(created.data.user.id);
+      return created.data.user.id;
+    }
   } catch {
-    // Local fallback keeps the demo usable without Auth configuration.
+    // Cookie identity still works when Auth is off or cookies cannot be written here.
   }
-  return "local-demo-user";
+
+  const cookieId = await readDemoUserCookie();
+  if (cookieId) return cookieId;
+
+  if (canUseMemoryFallback() && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return LOCAL_DEMO_USER;
+  }
+
+  const userId = crypto.randomUUID();
+  await writeDemoUserCookie(userId);
+  return userId;
 }
 
 export async function createStoredTrip(input: {
@@ -44,32 +226,17 @@ export async function createStoredTrip(input: {
     events: [],
     messages: [],
   };
-  memory.set(trip.id, trip);
 
-  const admin = createAdminSupabaseClient();
-  if (admin) {
-    await admin.from("trips").insert({
-      id: trip.id,
-      user_id: input.userId,
-      title: input.title,
-      mode: input.mode,
-      public_state: trip.tripState,
-    });
-  } else {
-    try {
-      const supabase = await createServerSupabaseClient();
-      await supabase.from("trips").insert({
-        id: trip.id,
-        user_id: input.userId,
-        title: input.title,
-        mode: input.mode,
-        public_state: trip.tripState,
-      });
-    } catch {
-      // memory store remains the source of truth
+  try {
+    const persisted = await persistTripRow(trip);
+    if (!persisted && !canUseMemoryFallback()) {
+      throw new Error("Trip storage is not configured");
     }
+  } catch (error) {
+    if (!canUseMemoryFallback()) throw error;
   }
 
+  memory.set(trip.id, trip);
   return trip;
 }
 
@@ -78,19 +245,9 @@ export async function getStoredTrip(tripId: string, userId: string): Promise<Sto
   if (cached && cached.userId === userId) return cached;
 
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data } = await supabase.from("trips").select("*").eq("id", tripId).maybeSingle();
-    if (!data || data.user_id !== userId) return cached?.userId === userId ? cached : null;
-    const trip: StoredTrip = {
-      id: data.id,
-      userId: data.user_id,
-      title: data.title,
-      status: data.status as StoredTrip["status"],
-      mode: data.mode as StoredTrip["mode"],
-      tripState: publicTripStateSchema.catch(emptyTripState()).parse(data.public_state),
-      events: cached?.events ?? [],
-      messages: cached?.messages ?? [],
-    };
+    const row = await loadTripRow(tripId, userId);
+    if (!row) return null;
+    const trip = tripFromRecord(row, cached?.userId === userId ? cached : null);
     memory.set(trip.id, trip);
     return trip;
   } catch {
@@ -100,19 +257,13 @@ export async function getStoredTrip(tripId: string, userId: string): Promise<Sto
 
 export async function saveStoredTrip(trip: StoredTrip) {
   memory.set(trip.id, trip);
-  const admin = createAdminSupabaseClient();
-  const client = admin ?? (await createServerSupabaseClient().catch(() => null));
-  if (!client) return;
-  await client
-    .from("trips")
-    .update({
-      title: trip.title,
-      status: trip.status,
-      mode: trip.mode,
-      public_state: trip.tripState,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", trip.id);
+  try {
+    await updateTripRow(trip);
+  } catch {
+    if (!canUseMemoryFallback()) {
+      throw new Error("Could not persist trip");
+    }
+  }
 }
 
 const leases = new Map<string, { key: string; expiresAt: number }>();

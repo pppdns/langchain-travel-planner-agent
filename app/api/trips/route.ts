@@ -22,14 +22,18 @@ export async function POST(request: Request) {
   }
 
   const body = createTripRequestSchema.catch({}).parse(await request.json().catch(() => ({})));
-  const userId = await getSessionUserId();
   const mode = budgetExhausted() || resolveRuntimeMode() === "replay" ? "replay" : resolveRuntimeMode();
   const title = body.starterId ? STARTERS[body.starterId].label : "Untitled trip";
-  const trip = await createStoredTrip({ userId, title, mode });
 
-  return NextResponse.json({
-    tripId: trip.id,
-    mode,
-    uploadsEnabled: env.UPLOADS_DISABLED !== "true",
-  });
+  try {
+    const userId = await getSessionUserId();
+    const trip = await createStoredTrip({ userId, title, mode });
+    return NextResponse.json({
+      tripId: trip.id,
+      mode,
+      uploadsEnabled: env.UPLOADS_DISABLED !== "true",
+    });
+  } catch {
+    return NextResponse.json({ error: "Could not start a trip." }, { status: 503 });
+  }
 }
