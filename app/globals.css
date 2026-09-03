@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@xyflow/react/dist/style.css";
+@source "../node_modules/streamdown/dist/*.js";
 
 :root {
   --background: oklch(0.18 0.018 265);
@@ -315,6 +316,21 @@ body {
   background: var(--elevated);
   border-bottom: 1px solid var(--border);
   fill: var(--text);
+}
+
+.planner-md {
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --muted-foreground: var(--muted);
+  --primary: var(--accent);
+  --primary-foreground: var(--ink);
+  --input: var(--border);
+  --radius: 10px;
+}
+
+.planner-md [data-streamdown] {
+  color: var(--text);
 }
 
 @media (prefers-reduced-motion: reduce) {

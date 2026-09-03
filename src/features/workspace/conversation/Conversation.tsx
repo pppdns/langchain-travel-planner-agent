@@ -14,6 +14,7 @@ import { Composer } from "@/src/features/workspace/conversation/Composer";
 import { DestinationInstrument } from "@/src/features/workspace/conversation/DestinationInstrument";
 import { EvidenceStrip } from "@/src/features/workspace/conversation/EvidenceStrip";
 import { FolioInstrument } from "@/src/features/workspace/conversation/FolioInstrument";
+import { MessageMarkdown } from "@/src/features/workspace/conversation/MessageMarkdown";
 import { MotifBand } from "@/src/features/workspace/conversation/MotifBand";
 import { TypeLine } from "@/src/features/workspace/conversation/TypeLine";
 import {
@@ -166,15 +167,7 @@ function TradeoffInstrument({
   );
 }
 
-function ChatMessage({
-  message,
-  typeIn,
-  onTyped,
-}: {
-  message: ConversationMessage;
-  typeIn?: boolean;
-  onTyped?: () => void;
-}) {
+function ChatMessage({ message, streaming }: { message: ConversationMessage; streaming?: boolean }) {
   const reduce = useReducedMotion();
   const user = message.role === "user";
 
@@ -195,7 +188,7 @@ function ChatMessage({
               : "rounded-[16px] rounded-tl-md bg-elevated text-text shadow-[inset_0_1px_0_oklch(0.93_0.014_85/0.05)]",
           )}
         >
-          {typeIn && !user ? <TypeLine key={message.id} text={message.content} onDone={onTyped} /> : message.content}
+          {user ? message.content : <MessageMarkdown text={message.content} streaming={streaming} />}
         </div>
         {!user && message.process && message.process.steps.length > 0 && (
           <div className="mt-2 pl-1">
@@ -242,7 +235,6 @@ export function Conversation({
 }) {
   const reduce = useReducedMotion();
   const end = useRef<HTMLDivElement>(null);
-  const [typedIds, setTypedIds] = useState<Record<string, boolean>>({});
   const liveProcess = buildAgentProcess(runEvents ?? []);
   const nodeLabel = activeNode ? getGraphNode(activeNode).label : undefined;
   const interrupt = resolveInterrupt(tripState, events);
@@ -250,9 +242,9 @@ export function Conversation({
     interrupt?.options.find((option) => option.recommended)?.id ?? tripState.candidateDestinations[0]?.slug;
   const offScope = isOffScopeQuestion(tripState.lastQuestion) || /only plan trips/i.test(messages.at(-1)?.content ?? "");
   const last = messages.at(-1);
-  const shownMessages = !presence.reveal && last?.role === "assistant" ? messages.slice(0, -1) : messages;
-  const typingMessage = presence.reveal && last?.role === "assistant" && !typedIds[last.id] ? last : null;
-  const turnReady = presence.reveal && !typingMessage;
+  const shownMessages = messages.filter((message) => message.role === "user" || message.content);
+  const streamingId = last?.role === "assistant" && (running || last.id === "streaming") ? last.id : null;
+  const turnReady = presence.reveal;
   const showChoices =
     turnReady && !interrupt && tripState.currentPlanningStage === "gathering" && tripState.guidedOptions.length > 0;
   const showDestinations =
@@ -280,12 +272,7 @@ export function Conversation({
 
         <div className={cn("mx-auto w-full max-w-[40rem] space-y-5", messages.length === 0 && "hidden")}>
           {shownMessages.map((message) => (
-            <ChatMessage
-              key={message.id}
-              message={message}
-              typeIn={typingMessage?.id === message.id}
-              onTyped={() => setTypedIds((current) => ({ ...current, [message.id]: true }))}
-            />
+            <ChatMessage key={message.id} message={message} streaming={streamingId === message.id} />
           ))}
 
           {presence.busy && (
@@ -302,7 +289,7 @@ export function Conversation({
             initial={reduce ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.42, ease: EASE }}
-            className="mx-auto mt-4 w-full max-w-[46rem]"
+            className="mx-auto mt-4 w-full max-w-[40rem]"
           >
             {showChoices && (
               <ChoiceInstrument
