@@ -44,6 +44,21 @@ test("mobile atlas preview opens a top overlay", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: /orchestration atlas/i })).toHaveCount(0);
 });
 
+test("other options names the fixed catalog", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("[data-ready='true']")).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: /warm family beach in europe/i }).click();
+  await expect(page.getByRole("heading", { name: /choose a destination/i })).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.locator("#composer").fill("Are there other options?");
+  await page.getByRole("button", { name: /^send$/i }).click();
+  await expect(page.getByText(/fixed demo catalog/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: /choose a destination/i })).toBeVisible();
+  await page.getByRole("option", { name: /faro/i }).click();
+  await expect(page.getByText(/day 1/i)).toBeVisible({ timeout: 20_000 });
+});
+
 test("atlas stays pinned while the thread scrolls", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/");

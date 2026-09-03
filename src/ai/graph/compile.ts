@@ -453,6 +453,12 @@ export function afterGather(state: GraphState) {
 export function afterRoute(state: GraphState) {
   switch (state.supervisorRoute) {
     case "answer":
+      if (
+        state.trip.pendingInterrupt?.interruptType === "choose_destination" &&
+        state.trip.destinationStatus !== "known"
+      ) {
+        return "await_destination_choice";
+      }
       return "end";
     case "present":
       return "present_plan";

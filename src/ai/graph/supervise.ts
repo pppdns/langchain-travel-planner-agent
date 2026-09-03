@@ -2,7 +2,7 @@ import { AIMessage, HumanMessage, type BaseMessage } from "@langchain/core/messa
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
 import { generateText, stepCountIs, tool } from "ai";
 import { z } from "zod";
-import { getDestination } from "@/data/travel/catalog";
+import { DESTINATIONS, getDestination } from "@/data/travel/catalog";
 import {
   applyRevision,
   detectRevision,
@@ -77,6 +77,8 @@ const SUPERVISOR_SYSTEM = [
   "If the trip is not planned yet, keep planning after you answer: ask the next missing field, offer a visible next step, or route to research when the destination is known, or discover when it is not.",
   "Never leave an unfinished plan without a next question or a choice. If the user only answered an intake field such as city or 4, do not end the turn.",
   "If you offer 2 to 6 concrete choices, list them as a numbered list. Those become the on-screen chips. Do not also ask what kind of trip in that same reply.",
+  "This is a hiring demo with a fixed European city catalog. Never invent destinations outside it.",
+  "If they ask for other options after candidates are already shown, say the catalog is fixed, name those ranked matches, and do not invent a new list.",
   "No em-dashes. No fake match percentages.",
 ].join(" ");
 
@@ -94,6 +96,54 @@ function looksLikeUserQuestion(text: string) {
     /\?\s*$/.test(trimmed) ||
     /^(what|what's|whats|how|is|are|does|do|can|could|where|when|why|which)\b/i.test(trimmed)
   );
+}
+
+export function looksLikeMoreOptionsAsk(text: string) {
+  const haystack = text.toLowerCase();
+  if (/\b(?:other|more|different)\b.{0,24}\b(?:options?|destinations?|places?|cities|choices?)\b/.test(haystack)) {
+    return true;
+  }
+  if (/\b(?:anything|something) else\b/.test(haystack)) return true;
+  if (/\bwhat else (?:do you|can you|have)\b/.test(haystack)) return true;
+  return /\bshow (?:me )?(?:more|others?)\b/.test(haystack);
+}
+
+function formatNameList(names: string[]) {
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0] ?? "";
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
+}
+
+function hasDestinationCandidates(trip: TripState) {
+  return (
+    trip.candidateDestinations.length > 0 ||
+    trip.pendingInterrupt?.interruptType === "choose_destination"
+  );
+}
+
+function mentionsCatalogLimit(text: string) {
+  return /fixed (?:demo )?catalog|demo catalog|synthetic catalog|not the open web|will not invent|won't invent|outside (?:the |this )?catalog/i.test(
+    text,
+  );
+}
+
+export function catalogBoundReply(trip: TripState) {
+  const names = trip.candidateDestinations.map((item) => item.name);
+  const listed = formatNameList(names) || "the places already on screen";
+  const verb = names.length === 1 ? "is the strongest match" : "are the strongest matches";
+  return [
+    "You asked if there are other destinations.",
+    `Route State plans from a fixed demo catalog of ${DESTINATIONS.length} European cities, not the open web.`,
+    `${listed} ${verb} in that set for this trip.`,
+    "I will not invent places outside the catalog.",
+  ].join(" ");
+}
+
+function boundedChoiceReply(trip: TripState) {
+  const count = trip.guidedOptions.length;
+  if (count < 2) return "";
+  return `You asked if there are other choices. Those ${count} options are what this demo can offer from here. Pick one to keep planning.`;
 }
 
 function resolveSlug(trip: TripState, text = "") {
@@ -402,6 +452,8 @@ function tripBrief(trip: TripState) {
     stage: trip.currentPlanningStage,
     nights: trip.dates.durationNights,
     pace: trip.pace,
+    catalogSize: DESTINATIONS.length,
+    candidates: trip.candidateDestinations.map((item) => item.name),
     itineraryDays: trip.itinerary?.days.map((day) => ({ day: day.day, title: day.title })) ?? [],
   });
 }
@@ -445,7 +497,7 @@ async function runLiveSupervisor(
       tier: routeModelTier("supervise"),
       schema: supervisorRouteSchema,
       system:
-        "Choose the next Route State graph move. If the user asked a question and there is no itinerary yet, choose answer. Do not jump to discover, research, or plan just because a destination is known. answer ends the turn. discover/research/plan/present hand off to specialist nodes. await_destination only if a destination choice is already pending and they are picking a place, not asking a question. If the draft lists 2 to 6 concrete choices, copy them into options and set question to the sentence that asks which to pick. Use only the supplied facts.",
+        "Choose the next Route State graph move. If the user asked a question and there is no itinerary yet, choose answer. Do not jump to discover, research, or plan just because a destination is known. If they ask for other destinations and candidates are already listed, choose answer and admit the catalog is fixed. answer ends the turn. discover/research/plan/present hand off to specialist nodes. await_destination only if a destination choice is already pending and they are picking a place, not asking a question. If the draft lists 2 to 6 concrete choices, copy them into options and set question to the sentence that asks which to pick. Use only the supplied facts.",
       prompt: [
         `User message: ${state.inputText}`,
         `Trip: ${tripBrief(state.trip)}`,
@@ -605,6 +657,25 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
   const advance = nextPlanningRoute(trip);
   const steer = nextSteer(trip);
 
+  if (looksLikeMoreOptionsAsk(text) && hasDestinationCandidates(trip) && trip.destinationStatus !== "known") {
+    return withPlanningSteer({
+      trip,
+      text,
+      assistantText: catalogBoundReply(trip),
+    });
+  }
+
+  if (looksLikeMoreOptionsAsk(text) && trip.guidedOptions.length >= 2 && !trip.itinerary) {
+    const reply = boundedChoiceReply(trip);
+    if (reply) {
+      return withPlanningSteer({
+        trip,
+        text,
+        assistantText: reply,
+      });
+    }
+  }
+
   if (asked) {
     return withPlanningSteer({
       trip,
@@ -638,6 +709,20 @@ export function finalizeSupervisor(state: SupervisorInput, result: SupervisorRes
       trip: result.trip,
       text: state.inputText,
       route: advance,
+      evidence,
+    });
+  }
+
+  if (
+    looksLikeMoreOptionsAsk(state.inputText) &&
+    hasDestinationCandidates(result.trip) &&
+    result.trip.destinationStatus !== "known"
+  ) {
+    const draft = result.assistantText?.trim() ?? "";
+    return withPlanningSteer({
+      trip: result.trip,
+      text: state.inputText,
+      assistantText: mentionsCatalogLimit(draft) ? draft : catalogBoundReply(result.trip),
       evidence,
     });
   }

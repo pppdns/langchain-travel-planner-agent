@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { Command } from "@langchain/langgraph";
-import { afterGather, compileTripGraph } from "@/src/ai/graph/compile";
+import { afterGather, afterRoute, compileTripGraph } from "@/src/ai/graph/compile";
 import { emptyTripState, tripStateSchema } from "@/src/ai/graph/state";
 import { applyStarterSeed } from "@/src/ai/contracts/starters";
 import { detectRevision } from "@/src/ai/graph/revisions";
-import { extractReplyChoices, finalizeSupervisor, nextSteer } from "@/src/ai/graph/supervise";
+import {
+  catalogBoundReply,
+  extractReplyChoices,
+  finalizeSupervisor,
+  looksLikeMoreOptionsAsk,
+  nextSteer,
+} from "@/src/ai/graph/supervise";
 import { buildLivePresentation } from "@/src/ai/models/live";
 import { runTripGraph } from "@/src/ai/runtime/public-run";
 import { assertToolAllowed } from "@/src/ai/tools/catalog";
@@ -35,6 +41,27 @@ describe("supervisor routing", () => {
         }),
       ),
     ).toBe("route_supervisor");
+  });
+
+  it("re-parks on destination choice after an answer so resume still works", () => {
+    expect(
+      afterRoute({
+        ...emptyGraphState({
+          trip: {
+            ...emptyTripState(),
+            destinationStatus: "candidates",
+            pendingInterrupt: {
+              interruptId: "choose-destination",
+              interruptType: "choose_destination",
+              title: "Choose a destination",
+              prompt: "Pick one",
+              options: [{ id: "faro", label: "Faro / Algarve" }],
+            },
+          },
+        }),
+        supervisorRoute: "answer",
+      }),
+    ).toBe("await_destination_choice");
   });
 
   it("sends gathering turns to the supervisor so questions can be answered", () => {
@@ -352,6 +379,115 @@ describe("supervisor routing", () => {
     expect(asked.tripState.pendingInterrupt?.interruptType).toBe("choose_destination");
     expect(asked.tripState.lastTurnKind).toBe("answer");
     expect(asked.tripState.candidateDestinations.length).toBeGreaterThan(0);
+  });
+
+  it("detects a request for more destinations", () => {
+    expect(looksLikeMoreOptionsAsk("Are there other options?")).toBe(true);
+    expect(looksLikeMoreOptionsAsk("any other destinations?")).toBe(true);
+    expect(looksLikeMoreOptionsAsk("what is the weather like in Faro?")).toBe(false);
+  });
+
+  it("names the fixed catalog instead of inventing more destinations", () => {
+    const trip = {
+      ...emptyTripState(),
+      destinationStatus: "candidates" as const,
+      candidateDestinations: [
+        { slug: "faro", name: "Faro / Algarve", country: "Portugal", summary: "", fit: "strong" as const, factors: [], evidence: [] },
+        { slug: "malaga", name: "Málaga", country: "Spain", summary: "", fit: "strong" as const, factors: [], evidence: [] },
+        { slug: "chania", name: "Chania", country: "Greece", summary: "", fit: "strong" as const, factors: [], evidence: [] },
+      ],
+    };
+    const reply = catalogBoundReply(trip);
+    expect(reply).toMatch(/fixed demo catalog/i);
+    expect(reply).toMatch(/Faro \/ Algarve/);
+    expect(reply).toMatch(/Málaga/);
+    expect(reply).toMatch(/Chania/);
+    expect(reply).toMatch(/will not invent/i);
+  });
+
+  it("answers a request for other destinations with the catalog limit", async () => {
+    const threadId = "family-beach-other-options";
+    const first = await runTripGraph({
+      threadId,
+      request: { kind: "starter", starterId: "family-beach-europe", idempotencyKey: "other-options-a" },
+      existing: applyStarterSeed("family-beach-europe"),
+    });
+    expect(first.interrupted).toBe(true);
+    expect(first.tripState.pendingInterrupt?.interruptType).toBe("choose_destination");
+    const names = first.tripState.candidateDestinations.map((item) => item.name);
+
+    const asked = await runTripGraph({
+      threadId,
+      request: { kind: "message", text: "Are there other options?", idempotencyKey: "other-options-b" },
+      existing: tripStateSchema.parse(first.tripState),
+    });
+    expect(asked.assistantText).toMatch(/fixed demo catalog/i);
+    expect(asked.assistantText).toMatch(/will not invent/i);
+    for (const name of names) {
+      expect(asked.assistantText).toContain(name);
+    }
+    expect(asked.assistantText).toMatch(/pick a destination/i);
+    expect(asked.tripState.pendingInterrupt?.interruptType).toBe("choose_destination");
+    expect(asked.tripState.lastTurnKind).toBe("answer");
+    expect(asked.tripState.candidateDestinations.map((item) => item.slug)).toEqual(
+      first.tripState.candidateDestinations.map((item) => item.slug),
+    );
+
+    const picked = await runTripGraph({
+      threadId,
+      request: {
+        kind: "resume",
+        interruptId: asked.tripState.pendingInterrupt?.interruptId ?? "choose-destination",
+        value: "faro",
+        idempotencyKey: "other-options-c",
+      },
+      existing: tripStateSchema.parse(asked.tripState),
+    });
+    expect(picked.tripState.destinationSlug).toBe("faro");
+    expect(picked.tripState.itinerary?.days.length).toBeGreaterThan(0);
+  });
+
+  it("rewrites a silent repeat of the same destinations into a catalog limit", () => {
+    const trip = {
+      ...emptyTripState(),
+      destinationStatus: "candidates" as const,
+      currentPlanningStage: "awaiting_destination" as const,
+      pendingInterrupt: {
+        interruptId: "choose-destination-faro-malaga-chania",
+        interruptType: "choose_destination" as const,
+        title: "Choose a destination",
+        prompt: "Pick a destination to continue.",
+        options: [
+          { id: "faro", label: "Faro / Algarve" },
+          { id: "malaga", label: "Málaga" },
+          { id: "chania", label: "Chania" },
+        ],
+      },
+      candidateDestinations: [
+        { slug: "faro", name: "Faro / Algarve", country: "Portugal", summary: "", fit: "strong" as const, factors: [], evidence: [] },
+        { slug: "malaga", name: "Málaga", country: "Spain", summary: "", fit: "strong" as const, factors: [], evidence: [] },
+        { slug: "chania", name: "Chania", country: "Greece", summary: "", fit: "strong" as const, factors: [], evidence: [] },
+      ],
+    };
+    const steered = finalizeSupervisor(
+      {
+        messages: [],
+        trip,
+        inputText: "Are there other options?",
+        inputKind: "message",
+        assistantText: "",
+      },
+      {
+        trip,
+        assistantText: "Choose a destination. These places fit the trip so far.",
+        messages: [],
+        supervisorRoute: "await_destination",
+      },
+    );
+    expect(steered.supervisorRoute).toBe("answer");
+    expect(steered.assistantText).toMatch(/fixed demo catalog/i);
+    expect(steered.assistantText).toMatch(/Faro \/ Algarve/);
+    expect(steered.trip.pendingInterrupt?.interruptType).toBe("choose_destination");
   });
 });
 
