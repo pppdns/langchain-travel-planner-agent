@@ -2,6 +2,12 @@
 
 A public, no-signup travel planner demo that showcases agentic features: a LangGraph supervisor, tool-using turns, human interrupts, and an allowlisted event stream. The product is a trip. The argument is that **LangGraph owns durable orchestration** while the UI only consumes public events.
 
+<p align="center">
+  <img src="docs/images/itinerary.png" alt="A finished 6-day Faro / Algarve itinerary next to the Orchestration Atlas, where every graph node has lit up as done" width="100%">
+</p>
+
+<p align="center"><sub>One thread, end to end: the chat and itinerary on the left, the live LangGraph path in the Orchestration Atlas on the right.</sub></p>
+
 Open `/`, start **Warm family beach in Europe**, choose a destination, and watch the same interrupted thread resume into an itinerary. After a plan exists, ask `what is the weather like in there?` The supervisor answers with tools instead of re-presenting the folio. For a second interrupt, start **City break, food and culture, under 1500 EUR**, pick a place, then choose whether to protect the budget or the packed pace.
 
 This is a demo app, not authoritative travel advice. The default runtime is deterministic so CI and the public site stay alive. Set `ROUTE_STATE_RUNTIME=live` with `OPENAI_API_KEY` or `AI_GATEWAY_API_KEY` to call models, stream tokens, query pgvector, and fetch Open-Meteo weather.
@@ -12,6 +18,49 @@ This is a demo app, not authoritative travel advice. The default runtime is dete
 2. Start the family-beach starter and inspect a graph node
 3. Ask a freeform question after the plan, or start the city-break starter for the tradeoff interrupt
 4. Optional: `/case-study` and `/replay/family-beach-europe`
+
+## Tour
+
+### Start from a trip you already understand
+
+Pick a starter or describe a trip in your own words. The Atlas on the right is the compiled graph itself, idle until you begin.
+
+<p align="center">
+  <img src="docs/images/landing.png" alt="Landing screen with four starter trips, the idle Orchestration Atlas, and an empty trip panel" width="100%">
+</p>
+
+### Human-in-the-loop interrupts
+
+The graph pauses on purpose. Discovery ranks places from evidence and stops at **Decide**; the same thread resumes with `Command({ resume })` once you choose. Evidence titles show under each answer, never chunk bodies.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/destination-interrupt.png" alt="Destination interrupt: three ranked places with evidence sources, Decide node waiting in the Atlas"></td>
+    <td width="50%"><img src="docs/images/tradeoff-interrupt.png" alt="Tradeoff interrupt: protect the budget or keep the packed pace, Review node waiting in the Atlas"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Destination choice</b> after discovery</sub></td>
+    <td align="center"><sub><b>Pace vs. budget</b> when the review finds a conflict</sub></td>
+  </tr>
+</table>
+
+### Tool-using turns after the plan
+
+Ask a freeform question and the supervisor answers with tools instead of re-presenting the itinerary. Here it resolves "there" from trip state and ends the turn.
+
+<p align="center">
+  <img src="docs/images/weather-tool-answer.png" alt="A weather question answered by the supervisor after the itinerary was presented" width="100%">
+</p>
+
+### Mobile
+
+The conversation stays usable at 390px, with a compact Atlas preview that opens as an overlay.
+
+<p align="center">
+  <img src="docs/images/mobile-chat.png" alt="Mobile layout with the Atlas preview on top and ranked destination choices below" width="300">
+</p>
+
+<sub>Screenshots are from the default deterministic (Fake) runtime.</sub>
 
 ## Architecture
 
