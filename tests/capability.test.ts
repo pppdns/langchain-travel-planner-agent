@@ -41,6 +41,9 @@ describe("capability and scope", () => {
     expect(detectOutOfCatalogAsk("somewhere in Asia")).toBe("Asia");
     expect(detectOutOfCatalogAsk("any destination in Norway?")).toBe("Norway");
     expect(detectOutOfCatalogAsk("is Faro walkable?")).toBeNull();
+    expect(detectOutOfCatalogAsk("Is it going to be too hot there for the kids?")).toBeNull();
+    expect(detectOutOfCatalogAsk("Are we going to need a car there?")).toBeNull();
+    expect(detectOutOfCatalogAsk("I want to visit Reykjavik.")).toBe("Reykjavik");
     expect(detectOutOfCatalogAsk("any destination in Portugal?")).toBeNull();
     expect(detectOutOfCatalogAsk("best beer halls in Munich")).toBeNull();
     expect(detectOutOfCatalogAsk("weather in Faro?")).toBeNull();

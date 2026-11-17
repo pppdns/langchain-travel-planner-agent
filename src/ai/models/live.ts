@@ -90,6 +90,7 @@ export async function extractTripFacts(text: string): Promise<TripExtract | null
       "Extract travel-planning facts for this demo app. Only use destinationSlug values from the catalog. Leave fields omitted when the user did not say them. Never invent prices.",
     prompt: `Catalog slugs: ${catalog}\n\nUser message:\n${text}`,
     timeoutMs: 12_000,
+    name: "extract_trip_facts",
   });
   return result?.output ?? null;
 }
@@ -105,6 +106,7 @@ export async function writeLiveAssistantCopy(params: {
       "You write short demo-app replies. No em-dashes. No match percentages. No bookings or live prices. Never say hiring or a product name. Use only the supplied facts. Two to four sentences.",
     prompt: `Facts:\n${params.facts}\n\nFallback tone to keep:\n${params.fallback}`,
     timeoutMs: 12_000,
+    name: `write_${params.kind}_copy`,
   });
   return text ?? params.fallback;
 }
@@ -170,5 +172,6 @@ export function streamLivePresentation(presentation: LivePresentation) {
     tier: presentation.modelTier,
     system: presentation.system,
     prompt: presentation.prompt,
+    name: "present_brief",
   });
 }

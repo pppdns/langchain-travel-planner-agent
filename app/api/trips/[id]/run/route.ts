@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { flushTraces } from "@/src/ai/observability/tracing";
 import { runTripRequestSchema } from "@/src/ai/contracts/http";
 import { replayEventsFor, runTripGraph } from "@/src/ai/runtime/public-run";
 import { budgetExhausted, reserveSpend, settleSpend } from "@/src/ai/runtime/budget";
@@ -92,6 +93,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const playwright = request.headers.get("x-playwright") === "1" || process.env.PLAYWRIGHT === "1";
     const liveModels = !playwright && isLiveModelsEnabled();
+    // Serverless functions can freeze once the response ends; flush LangSmith batches after it.
+    after(flushTraces);
     const result = await runTripGraph({
       threadId: trip.id,
       request: parsed.data,

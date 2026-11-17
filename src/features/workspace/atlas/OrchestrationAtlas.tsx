@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useSyncExternalStore, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type RefObject } from "react";
 import { useReducedMotion } from "motion/react";
 import {
   Background,
@@ -113,9 +113,12 @@ function AtlasFollowCam({
   const { fitView, getNode, setCenter } = useReactFlow();
   const reduce = useReducedMotion();
   const previousRef = useRef<GraphNodeId | null>(null);
-  const latestRef = useRef({ activeNode, selectedNode, previous: previousRef.current });
+  const latestRef = useRef({ activeNode, selectedNode });
   const focus = selectedNode ?? activeNode;
-  latestRef.current = { activeNode, selectedNode, previous: previousRef.current };
+  // Keep the latest focus for delayed camera runs without touching refs during render.
+  useLayoutEffect(() => {
+    latestRef.current = { activeNode, selectedNode };
+  });
 
   useEffect(() => {
     const from = previousRef.current;

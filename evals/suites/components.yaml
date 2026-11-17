@@ -1,0 +1,126 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+#
+# Component evals: one model-backed step at a time, with exact expected values.
+#  - extract: structured-output accuracy of `extractTripFacts` (fast tier)
+#  - route:   classification accuracy of the live supervisor's routing decision (standard tier)
+description: Route State components (extraction + routing)
+
+prompts:
+  - "{{message}}"
+
+providers:
+  - id: file://../components-provider.ts
+    label: extract
+    config: { component: extract }
+  - id: file://../components-provider.ts
+    label: route
+    config: { component: route }
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: context.metadata.fellBack === false
+      metric: reliability
+
+tests:
+  # --- Structured extraction -------------------------------------------------
+  - description: "extract: family, nights, budget, pace"
+    metadata: { category: extraction }
+    providers: [extract]
+    vars: { message: "Two adults and 2 kids, 7 nights, around 3000 EUR total, slow and relaxed please." }
+    assert:
+      - type: is-json
+        metric: extraction
+      - type: javascript
+        metric: extraction
+        value: |
+          const f = JSON.parse(output);
+          return f.adults === 2 && f.children === 2 && f.durationNights === 7 && f.budgetAmount === 3000 && f.pace === 'relaxed';
+
+  - description: "extract: catalog destination slug"
+    metadata: { category: extraction }
+    providers: [extract]
+    vars: { message: "We're thinking Lisbon for a long weekend, 3 nights, food and viewpoints." }
+    assert:
+      - type: javascript
+        metric: extraction
+        value: |
+          const f = JSON.parse(output);
+          return f.destinationSlug === 'lisbon' && f.durationNights === 3;
+
+  - description: "extract: does not invent fields the user did not give"
+    metadata: { category: extraction }
+    providers: [extract]
+    vars: { message: "Somewhere sunny please." }
+    assert:
+      - type: javascript
+        metric: extraction
+        value: |
+          const f = JSON.parse(output) ?? {};
+          return f.budgetAmount === undefined && f.durationNights === undefined && f.destinationSlug === undefined;
+
+  - description: "extract: off-catalog city is not mapped to a slug"
+    metadata: { category: extraction }
+    providers: [extract]
+    vars: { message: "5 nights in Tokyo, budget 4000 USD." }
+    assert:
+      - type: javascript
+        metric: extraction
+        value: |
+          const f = JSON.parse(output);
+          return !f.destinationSlug && f.durationNights === 5 && f.budgetAmount === 4000;
+
+  # --- Routing classification ----------------------------------------------
+  - description: "route: catalog question mid-discovery is answered"
+    metadata: { category: routing }
+    providers: [route]
+    vars: { starter: family-beach-europe, message: "Which of these is the most walkable?" }
+    assert:
+      - type: equals
+        value: answer
+        metric: routing
+
+  - description: "route: booking ask is answered as a limit"
+    metadata: { category: routing }
+    providers: [route]
+    vars: { starter: barcelona-couple, message: "Can you reserve a table for us on day 2?" }
+    assert:
+      - type: equals
+        value: answer
+        metric: routing
+
+  - description: "route: show the plan when an itinerary exists"
+    metadata: { category: routing }
+    providers: [route]
+    vars: { starter: barcelona-couple, message: "Show me the full plan again." }
+    assert:
+      - type: equals
+        value: present
+        metric: routing
+
+  - description: "route: unknown destination goes to discovery"
+    metadata: { category: routing }
+    providers: [route]
+    vars: { message: "Find me a warm beach town in Europe for a family, 6 nights, relaxed." }
+    assert:
+      - type: javascript
+        metric: routing
+        value: "['discover', 'answer'].includes(output) ? { pass: output === 'discover', score: output === 'discover' ? 1 : 0.5, reason: output } : false"
+
+  - description: "route: revision request replans"
+    metadata: { category: routing }
+    providers: [route]
+    vars: { starter: barcelona-couple, message: "Make the days shorter and the pace slower." }
+    assert:
+      - type: equals
+        value: plan
+        metric: routing
+
+  - description: "route: picking a pending option resumes the choice"
+    metadata: { category: routing }
+    providers: [route]
+    vars: { starter: family-beach-europe, message: "Let's go with Faro." }
+    assert:
+      - type: javascript
+        metric: routing
+        value: "['await_destination', 'research', 'plan'].includes(output)"
