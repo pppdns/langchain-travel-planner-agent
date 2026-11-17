@@ -9,3 +9,4 @@
 - Vercel BotID gates trip creation, runs, and uploads. It is not a substitute for RLS or spend limits.
 - Image uploads accept JPEG/PNG/WebP scenery only. Identity and booking documents are rejected.
 - Public events are allowlisted. Prompts, secrets, OCR, and chunk bodies never leave the server.
+- LangSmith traces contain prompts, tool inputs, and model output, so they go only to a private LangSmith workspace. Tracing is opt-in (`LANGSMITH_TRACING=true` plus a key), forced off under Vitest and Playwright, and never feeds the public event stream.

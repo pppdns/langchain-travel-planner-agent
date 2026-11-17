@@ -136,6 +136,18 @@ Prompts, secrets, checkpoint blobs, and retrieved chunk bodies never stream. Mod
 
 Atomic spend reservation (`DAILY_BUDGET_CENTS`) keeps the public demo from dying mid-session. Live models stay optional: `configurable.liveModels` on the graph, forced off under `VITEST=true` or `PLAYWRIGHT=1`.
 
+## Evals & tracing
+
+PromptFoo evals run the real compiled graph, and LangSmith traces every live run. See [`docs/evaluation.md`](docs/evaluation.md).
+
+| Suite | Command | What it covers |
+|---|---|---|
+| Deterministic | `pnpm eval` (CI) | Graph regression: interrupts, resume, revisions, scope, grounding |
+| Live end-to-end | `pnpm eval:live` | Safety and injection, grounding, task success, multi-turn, LLM-as-judge quality, style, latency and token budgets |
+| Components | `pnpm eval:live` | Structured-extraction accuracy, supervisor routing classification |
+
+The latest live results are in [`evals/results.md`](evals/results.md). Each case links to its LangSmith thread, where the trace tree is `trip_turn → LangGraph → node → LLM / tool spans`.
+
 ## Stack
 
 | Area | Choice |
@@ -148,6 +160,8 @@ Atomic spend reservation (`DAILY_BUDGET_CENTS`) keeps the public demo from dying
 | Weather | Open-Meteo |
 | Abuse / spend | Vercel BotID, daily budget, replay fallback |
 | Tests | Vitest, Playwright |
+| Evals | PromptFoo (deterministic, live, components; LLM-as-judge) |
+| Tracing | LangSmith (LangGraph callbacks + AI SDK telemetry) |
 
 ## Repo map
 
@@ -161,6 +175,8 @@ src/features/workspace  Orchestration Atlas and conversation
 app/api/trips         create, snapshot, run, images
 data/travel           synthetic catalog
 langflow/             non-runtime viewer artifact
+src/ai/observability  LangSmith tracing
+evals/                PromptFoo suites, graph provider, results
 docs/                 architecture, security, evaluation, runbook
 ```
 
@@ -177,6 +193,8 @@ pnpm test
 pnpm typecheck
 pnpm lint
 pnpm test:e2e
+pnpm eval
+pnpm eval:live
 pnpm generate:corpus
 pnpm seed:corpus
 ```
@@ -195,6 +213,6 @@ SUPABASE_SESSION_POOLER_DATABASE_URL=...
 
 - [`docs/architecture.md`](docs/architecture.md) system map
 - [`docs/security.md`](docs/security.md) RLS, BotID, public-event rules
-- [`docs/evaluation.md`](docs/evaluation.md) what CI proves
+- [`docs/evaluation.md`](docs/evaluation.md) eval types, live results, tracing
 - [`docs/runbook.md`](docs/runbook.md) flags, live setup, rollback
 - `/case-study` in the running app: short architecture notes

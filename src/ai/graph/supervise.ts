@@ -1,6 +1,7 @@
 import { AIMessage, HumanMessage, type BaseMessage } from "@langchain/core/messages";
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
 import { generateText, stepCountIs, tool } from "ai";
+import { loggedCall } from "@/src/ai/models/call-log";
 import { z } from "zod";
 import { DESTINATIONS, getDestination } from "@/data/travel/catalog";
 import {
@@ -528,21 +529,27 @@ async function runLiveSupervisor(
   });
 
   try {
-    const drafted = await generateText({
-      model: languageModel(routeModelTier("supervise")),
-      system: SUPERVISOR_SYSTEM,
-      prompt: `Trip:\n${tripBrief(state.trip)}\n\nLatest user message:\n${state.inputText}`,
-      tools,
-      stopWhen: stepCountIs(5),
-      maxRetries: 1,
-      abortSignal: AbortSignal.timeout(20_000),
-    });
+    const drafted = await loggedCall(
+      { kind: "agent", tier: routeModelTier("supervise") },
+      () =>
+        generateText({
+          model: languageModel(routeModelTier("supervise")),
+          system: SUPERVISOR_SYSTEM,
+          prompt: `Trip:\n${tripBrief(state.trip)}\n\nLatest user message:\n${state.inputText}`,
+          tools,
+          stopWhen: stepCountIs(5),
+          maxRetries: 1,
+          abortSignal: AbortSignal.timeout(20_000),
+          telemetry: { functionId: "route_supervisor.react" },
+        }),
+      (result) => ({ inputTokens: result.totalUsage.inputTokens, outputTokens: result.totalUsage.outputTokens }),
+    );
 
     const routed = await generateStructured({
       tier: routeModelTier("supervise"),
       schema: supervisorRouteSchema,
       system:
-        "Choose the next graph move. If the user asked a question, a booking they cannot do, or what this demo can do, choose answer. Do not jump to discover, research, or plan just because a destination is known. If they asked to see the plan and an itinerary exists, choose present. If they ask for other destinations and candidates are already listed, choose answer and admit the catalog is fixed. If they ask for a place outside the catalog, or anything the draft cannot actually answer, choose answer and say so. Never pick a reply that ignores the question. answer ends the turn. discover/research/plan/present hand off to specialist nodes. await_destination only if a destination choice is already pending and they are picking a place, not asking a question. If the draft lists 2 to 6 concrete choices, copy them into options and set question to the sentence that asks which to pick. Use only the supplied facts.",
+        "Choose the next graph move. If the user asked a question, a booking they cannot do, or what this demo can do, choose answer. Do not jump to discover, research, or plan just because a destination is known. If an itinerary exists and they ask to change it (slower, faster, shorter days, fewer transfers, swap or drop a stop), choose plan. If no destination is known and they describe the trip they want or ask you to find places, choose discover; do not list your own destinations. If they asked to see the plan and an itinerary exists, choose present. If they ask for other destinations and candidates are already listed, choose answer and admit the catalog is fixed. If they ask for a place outside the catalog, or anything the draft cannot actually answer, choose answer and say so. Never pick a reply that ignores the question. answer ends the turn. discover/research/plan/present hand off to specialist nodes. await_destination only if a destination choice is already pending and they are picking a place, not asking a question. If the draft lists 2 to 6 concrete choices, copy them into options and set question to the sentence that asks which to pick. Use only the supplied facts.",
       prompt: [
         `User message: ${state.inputText}`,
         `Trip: ${tripBrief(state.trip)}`,
@@ -550,6 +557,7 @@ async function runLiveSupervisor(
         `Evidence titles: ${evidence.map((item) => item.title).join("; ") || "(none)"}`,
       ].join("\n"),
       timeoutMs: 12_000,
+      name: "route_supervisor.route",
     });
 
     if (!routed) return null;
@@ -777,7 +785,24 @@ async function runFakeSupervisor(state: SupervisorInput, live: boolean): Promise
   return finishRoute({ trip, text, route: "discover" });
 }
 
-export function finalizeSupervisor(state: SupervisorInput, result: SupervisorResult): SupervisorResult {
+/**
+ * `await_destination` only makes sense when there are ranked candidates to choose from. A live model can pick
+ * it after writing its own list of places, which would interrupt with an empty choice. Send it to discovery
+ * (or research, if the destination is already known) so real candidates get ranked.
+ */
+function repairAwaitDestination(result: SupervisorResult, text: string): SupervisorResult {
+  if (result.supervisorRoute !== "await_destination") return result;
+  if (hasDestinationCandidates(result.trip)) return result;
+  return finishRoute({
+    trip: result.trip,
+    text,
+    route: result.trip.destinationStatus === "known" ? "research" : "discover",
+    evidence: result.trip.latestEvidence,
+  });
+}
+
+export function finalizeSupervisor(state: SupervisorInput, input: SupervisorResult): SupervisorResult {
+  const result = repairAwaitDestination(input, state.inputText);
   const asked = state.inputKind === "message" && looksLikeUserQuestion(state.inputText);
   const advance = nextPlanningRoute(result.trip);
   const evidence = result.trip.latestEvidence;
@@ -866,6 +891,18 @@ export function finalizeSupervisor(state: SupervisorInput, result: SupervisorRes
       trip: result.trip,
       text: state.inputText,
       assistantText,
+      evidence,
+    });
+  }
+
+  // A clear revision of an existing plan ("slower", "fewer transfers") must replan, even if a live router said answer.
+  if (result.supervisorRoute === "answer" && result.trip.itinerary && detectRevision(state.inputText)) {
+    const revised = applyRequestedRevision(result.trip, state.inputText, "plan");
+    return finishRoute({
+      trip: revised.trip,
+      text: state.inputText,
+      route: "plan",
+      assistantText: revised.preface,
       evidence,
     });
   }

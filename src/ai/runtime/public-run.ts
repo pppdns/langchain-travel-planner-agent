@@ -20,6 +20,7 @@ import {
   type PublicEvent,
 } from "@/src/ai/stream/public-events";
 import type { RunTripRequest, StarterId } from "@/src/ai/contracts/http";
+import { withTrace } from "@/src/ai/observability/tracing";
 import { buildLivePresentation, type LivePresentation } from "@/src/ai/models/live";
 
 export type RunResult = {
@@ -28,6 +29,8 @@ export type RunResult = {
   assistantText: string;
   interrupted: boolean;
   livePresentation: LivePresentation | null;
+  /** Route the supervisor picked this turn, if it ran. Internal: not part of the public stream. */
+  supervisorRoute?: string;
 };
 
 const NODE_ORDER: GraphNodeId[] = [
@@ -81,12 +84,31 @@ function eventsFromUpdate(update: Record<string, unknown>): PublicEvent[] {
   return events.map((event) => sanitizePublicEvent(event));
 }
 
-export async function runTripGraph(input: {
+type RunTripInput = {
   threadId: string;
   request: RunTripRequest;
   existing?: TripState;
   liveModels?: boolean;
-}): Promise<RunResult> {
+  /** Extra LangSmith tags, e.g. `eval`. */
+  traceTags?: string[];
+};
+
+/** One user turn through the compiled graph, traced as `trip_turn` in LangSmith when tracing is on. */
+export function runTripGraph(input: RunTripInput): Promise<RunResult> {
+  return withTrace(
+    "trip_turn",
+    {
+      threadId: input.threadId,
+      requestKind: input.request.kind,
+      starterId: "starterId" in input.request ? input.request.starterId : undefined,
+      liveModels: Boolean(input.liveModels),
+      tags: input.traceTags,
+    },
+    () => runTripGraphTurn(input),
+  );
+}
+
+async function runTripGraphTurn(input: RunTripInput): Promise<RunResult> {
   const config = {
     configurable: { thread_id: input.threadId, liveModels: Boolean(input.liveModels) },
     recursionLimit: 16,
@@ -171,7 +193,8 @@ export async function runTripGraph(input: {
       })
     : null;
 
-  return { events, tripState, assistantText, interrupted, livePresentation };
+  const supervisorRoute = typeof snapshot.values?.supervisorRoute === "string" ? snapshot.values.supervisorRoute : undefined;
+  return { events, tripState, assistantText, interrupted, livePresentation, supervisorRoute };
 }
 
 function usageFor(events: PublicEvent[]) {

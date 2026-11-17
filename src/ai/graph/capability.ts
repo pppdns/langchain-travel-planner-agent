@@ -241,6 +241,19 @@ function extractCoveredPlace(text: string) {
   return going?.[1]?.trim() ?? "";
 }
 
+// Words that never appear in a place name. Catches phrases like "going to be too hot there for the kids".
+const NON_PLACE_WORDS = new Set([
+  "be", "is", "are", "it", "its", "there", "here", "too", "very", "for", "with", "about", "kids", "children",
+  "get", "have", "do", "see", "stay", "eat", "try", "go", "take", "make", "need", "want", "like",
+  "my", "our", "your", "this", "that", "these", "those", "some", "more", "less", "me", "us", "them",
+  "hot", "cold", "warm", "busy", "crowded", "expensive", "cheap", "rain", "rainy",
+]);
+
+function looksLikePlaceName(value: string) {
+  const words = stripPlaceArticle(value).split(" ").filter(Boolean);
+  return words.length > 0 && words.length <= 4 && !words.some((word) => NON_PLACE_WORDS.has(word));
+}
+
 export function detectOutOfCatalogAsk(text: string): string | null {
   const haystack = text.trim();
   if (!haystack) return null;
@@ -251,7 +264,13 @@ export function detectOutOfCatalogAsk(text: string): string | null {
   const extracted = extractCoveredPlace(haystack);
   if (!extracted) return null;
   const normalized = stripPlaceArticle(extracted);
-  if (!normalized || normalized.length < 3 || GENERIC_GEO.has(normalized) || isCatalogPlace(extracted)) {
+  if (
+    !normalized ||
+    normalized.length < 3 ||
+    GENERIC_GEO.has(normalized) ||
+    isCatalogPlace(extracted) ||
+    !looksLikePlaceName(extracted)
+  ) {
     return null;
   }
   return displayPlace(extracted);

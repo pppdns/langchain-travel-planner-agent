@@ -26,6 +26,8 @@ pnpm test
 pnpm typecheck
 pnpm lint
 pnpm test:e2e
+pnpm eval        # PromptFoo, deterministic graph, $0 (CI)
+pnpm eval:live   # PromptFoo, real models + LLM judge (costs money)
 ```
 
 ## Conventions
@@ -35,6 +37,8 @@ pnpm test:e2e
 - Resume uses `Command({ resume })`.
 - Send message deltas only. Do not append the client transcript to the checkpointer.
 - Default runtime is deterministic/fake so CI and the public demo stay alive.
+- Model calls go through `src/ai/models/factory.ts` (or log via `loggedCall`) so evals can detect silent fallbacks; give new calls a `name` for trace spans.
+- LangSmith tracing lives in `src/ai/observability/tracing.ts` and stays off under Vitest/Playwright.
 
 ## Documentation
 

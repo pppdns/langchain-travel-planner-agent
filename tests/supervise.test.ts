@@ -742,3 +742,42 @@ describe("live presentation on answer turns", () => {
     ).toBeNull();
   });
 });
+
+describe("live supervisor guards", () => {
+  const input = (trip: ReturnType<typeof emptyTripState>, inputText: string) => ({
+    messages: [],
+    trip,
+    inputText,
+    inputKind: "message",
+    assistantText: "",
+  });
+
+  it("sends await_destination with nothing to choose to discovery", () => {
+    const trip = { ...applyStarterSeed("family-beach-europe"), candidateDestinations: [], pendingInterrupt: null };
+    const result = finalizeSupervisor(input(trip, "Warm beach for the family, relaxed."), {
+      trip,
+      messages: [],
+      assistantText: "1. Faro 2. Chania 3. Split. Which one?",
+      supervisorRoute: "await_destination",
+    });
+    expect(result.supervisorRoute).toBe("discover");
+  });
+
+  it("replans a clear revision even when the live router answered", async () => {
+    const planned = await runTripGraph({
+      threadId: "guard-revision",
+      request: { kind: "starter", starterId: "barcelona-couple", idempotencyKey: "guard-revision-1" },
+      existing: applyStarterSeed("barcelona-couple"),
+    });
+    const trip = tripStateSchema.parse({ ...applyStarterSeed("barcelona-couple"), ...planned.tripState });
+    expect(trip.itinerary).toBeDefined();
+    const result = finalizeSupervisor(input(trip, "Make the days shorter and the pace slower."), {
+      trip,
+      messages: [],
+      assistantText: "Sure, I can keep it relaxed.",
+      supervisorRoute: "answer",
+    });
+    expect(result.supervisorRoute).toBe("plan");
+    expect(result.trip.pace).toBe("relaxed");
+  });
+});

@@ -1,0 +1,35 @@
+name: evals-live
+
+# Live-model evals cost real money, so they only run on demand.
+on:
+  workflow_dispatch:
+
+jobs:
+  live-evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+      LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+      LANGSMITH_TRACING: ${{ secrets.LANGSMITH_API_KEY != '' && 'true' || 'false' }}
+      LANGSMITH_ENDPOINT: ${{ vars.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com' }}
+      LANGSMITH_AGENT_ID: ${{ vars.LANGSMITH_AGENT_ID }}
+      LANGSMITH_AGENT_ENVIRONMENT: ${{ vars.LANGSMITH_AGENT_ID != '' && 'development' || '' }}
+      PROMPTFOO_DISABLE_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: touch .env.local
+      - run: pnpm eval:live
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: promptfoo-results
+          path: |
+            evals/output/
+            evals/results.md
